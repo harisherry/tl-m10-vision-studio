@@ -1,0 +1,10 @@
+# Runtime WebView2 user data & caches
+bin/WV2_Screen/
+bin/WV2_Studio/
+bin/ConvertedMedia/
+bin/settings.json
+bin/*.log
+test_udf_*/
+
+# Large 81MB external FFmpeg binary (auto-detected from TRCCCAP or local bin)
+bin/ffmpeg.exe

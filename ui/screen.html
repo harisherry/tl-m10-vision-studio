@@ -1,0 +1,2676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>TL-M10 Vision 1920x462 Screen Engine</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #040711;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #fff;
+      user-select: none;
+    }
+    #anim-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw !important;
+      height: 100vh !important;
+      display: block;
+      z-index: 1;
+    }
+    #media-stage {
+      position: fixed;
+      inset: 0;
+      width: 100vw !important;
+      height: 100vh !important;
+      display: none;
+      overflow: hidden;
+      background: #000;
+      z-index: 2;
+    }
+    #media-blur-bg, #media-blur-vid {
+      position: absolute;
+      inset: -40px;
+      width: calc(100% + 80px);
+      height: calc(100% + 80px);
+      object-fit: fill;
+      filter: blur(26px) brightness(0.48) saturate(1.35);
+      z-index: 1;
+      display: none;
+    }
+    #media-img, #media-video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      display: none;
+      transform-origin: center center;
+    }
+    #custom-html-stage {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 462px;
+      transform-origin: top left;
+      display: none;
+      z-index: 3;
+      overflow: hidden;
+    }
+    #center-hero-text {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      z-index: 4;
+      font-size: 64px;
+      font-weight: 900;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: #fff;
+      text-shadow: 0 0 24px var(--hero-glow, #00f2fe), 0 0 60px var(--hero-glow, #00f2fe);
+      pointer-events: none;
+      white-space: nowrap;
+      text-align: center;
+    }
+    #center-sub-text {
+      display: block;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 8px;
+      color: rgba(255,255,255,0.75);
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="anim-canvas" width="1920" height="462"></canvas>
+
+  <div id="media-stage">
+    <img id="media-blur-bg" alt="" />
+    <video id="media-blur-vid" autoplay loop muted playsinline></video>
+    <img id="media-img" alt="" />
+    <video id="media-video" autoplay loop muted playsinline></video>
+  </div>
+
+  <div id="custom-html-stage"></div>
+
+  <div id="center-hero-text">
+    <span id="hero-main"></span>
+    <span id="center-sub-text"></span>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('anim-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = 1920;
+    const H = 462;
+
+    function syncStageScaling() {
+      const vw = window.innerWidth || 1920;
+      const vh = window.innerHeight || 462;
+      const sx = vw / 1920;
+      const sy = vh / 462;
+      const customStage = document.getElementById('custom-html-stage');
+      if (customStage) {
+        customStage.style.transform = `scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+      }
+      const heroWrap = document.getElementById('center-hero-text');
+      if (heroWrap) {
+        heroWrap.style.transform = `translate(-50%, -50%) scale(${sx.toFixed(4)})`;
+      }
+    }
+    window.addEventListener('resize', syncStageScaling);
+    syncStageScaling();
+
+    let cfg = {
+      screenMode: 'animation', // 'animation', 'media', 'customhtml'
+      animPreset: 'synthwave',
+      animSpeed: 1.0,
+      animDensity: 1.0,
+      accentColor: '#00f2fe',
+      secondaryColor: '#ff007f',
+      heroText: '',
+      heroSubText: '',
+      audioReactive: true,
+      clock24h: false,
+      marketCurrency: 'USD', // 'USD', 'PKR', 'EUR', 'GBP', 'AED', 'SAR', 'BOTH'
+      mediaUrl: '',
+      mediaType: 'image',
+      mediaFit: 'stretch',
+      mediaZoom: 1.0,
+      mediaPanX: 0,
+      mediaPanY: 0,
+      mediaRotate: 0,
+      mediaFlipH: false,
+      mediaFlipV: false,
+      customHtml: ''
+    };
+
+    let telem = {
+      cpuTemp: 45,
+      cpuUsage: 15,
+      cpuClock: 4800,
+      cpuPower: 45,
+      gpuTemp: 50,
+      gpuUsage: 12,
+      gpuClock: 1950,
+      gpuPower: 60,
+      ramUsage: 40,
+      ramUsedGb: 12.8,
+      netDownKbs: 140,
+      netUpKbs: 35,
+      spectrum: new Array(64).fill(0),
+      bass: 0
+    };
+
+    // Live Market Data Store (Updated by C# LiveMarketDataService)
+    let marketData = {
+      usdToPkr: 278.65,
+      lastUpdated: 'LIVE',
+      btcChart: [93200,93450,93310,93600,93890,93750,94100,94350,94200,94520,94480,94790,94650,94920,95150,95040,95320,95480,95390,95680,95850,95720,96010,96240],
+      crypto: [
+        { symbol: 'BTC', name: 'Bitcoin', priceUsd: 96240, change24h: 3.45, high24h: 96850, low24h: 92900, vol24h: '42.8B', spark: [93200,93600,94100,94520,94920,95320,95850,96240] },
+        { symbol: 'ETH', name: 'Ethereum', priceUsd: 2845.50, change24h: 2.82, high24h: 2890, low24h: 2740, vol24h: '19.4B', spark: [2750,2770,2790,2785,2810,2830,2825,2845.5] },
+        { symbol: 'SOL', name: 'Solana', priceUsd: 188.40, change24h: 5.18, high24h: 192, low24h: 178, vol24h: '6.2B', spark: [179,181,180,183,185,184,187,188.4] },
+        { symbol: 'BNB', name: 'BNB Chain', priceUsd: 654.20, change24h: 1.42, high24h: 662, low24h: 642, vol24h: '1.8B', spark: [644,646,648,647,650,652,651,654.2] },
+        { symbol: 'XRP', name: 'Ripple', priceUsd: 2.58, change24h: 4.15, high24h: 2.65, low24h: 2.44, vol24h: '5.1B', spark: [2.46,2.48,2.50,2.49,2.53,2.55,2.56,2.58] },
+        { symbol: 'DOGE', name: 'Dogecoin', priceUsd: 0.264, change24h: 6.24, high24h: 0.272, low24h: 0.246, vol24h: '2.9B', spark: [0.248,0.251,0.254,0.256,0.259,0.261,0.262,0.264] },
+        { symbol: 'ADA', name: 'Cardano', priceUsd: 0.815, change24h: -0.85, high24h: 0.835, low24h: 0.795, vol24h: '940M', spark: [0.825,0.822,0.820,0.818,0.819,0.817,0.816,0.815] }
+      ],
+      kse100: {
+        value: 114850.45,
+        change: 1245.80,
+        changePct: 1.10,
+        high: 115210.00,
+        low: 113680.00,
+        volume: '482.5M',
+        status: 'PSX KARACHI',
+        spark: [113680,113820,113950,114120,114080,114290,114450,114380,114560,114690,114780,114850.45]
+      },
+      psxStocks: [
+        { symbol: 'SYS', name: 'Systems Limited', price: 586.50, change: 14.25, changePct: 2.49, spark: [572,575,578,577,581,584,585,586.5] },
+        { symbol: 'LUCK', name: 'Lucky Cement', price: 1142.00, change: 22.40, changePct: 2.00, spark: [1120,1124,1128,1131,1135,1138,1140,1142] },
+        { symbol: 'OGDC', name: 'Oil & Gas Dev Co', price: 214.80, change: 4.65, changePct: 2.21, spark: [210,211,210.5,212,213,213.8,214.2,214.8] },
+        { symbol: 'HUBC', name: 'Hub Power Co', price: 134.90, change: 2.15, changePct: 1.62, spark: [132.8,133.1,133.5,133.9,134.2,134.5,134.7,134.9] },
+        { symbol: 'MEBL', name: 'Meezan Bank', price: 248.60, change: 5.30, changePct: 2.18, spark: [243.3,244.1,245.0,245.8,246.5,247.4,248.1,248.6] },
+        { symbol: 'ENGRO', name: 'Engro Holdings', price: 412.25, change: -3.10, changePct: -0.75, spark: [415.3,414.8,414.2,413.9,413.1,412.8,412.5,412.25] },
+        { symbol: 'PPL', name: 'Pakistan Petroleum', price: 186.40, change: 3.90, changePct: 2.14, spark: [182.5,183.2,184.0,184.6,185.1,185.8,186.1,186.4] },
+        { symbol: 'FFC', name: 'Fauji Fertilizer', price: 378.90, change: 8.45, changePct: 2.28, spark: [370.5,372.0,373.4,374.8,376.1,377.2,378.1,378.9] }
+      ],
+      usStocks: [
+        { symbol: 'NVDA', name: 'NVIDIA Corp', price: 138.60, change: 4.25, changePct: 3.16, spark: [134.3,135.1,135.8,136.4,137.0,137.6,138.1,138.6] },
+        { symbol: 'AAPL', name: 'Apple Inc', price: 234.80, change: 2.15, changePct: 0.92, spark: [232.6,233.0,233.4,233.8,234.1,234.4,234.6,234.8] },
+        { symbol: 'TSLA', name: 'Tesla Inc', price: 342.50, change: 12.80, changePct: 3.88, spark: [329.7,332.0,334.5,336.2,338.0,340.1,341.4,342.5] },
+        { symbol: 'MSFT', name: 'Microsoft', price: 428.90, change: 3.60, changePct: 0.85, spark: [425.3,425.9,426.5,427.1,427.6,428.2,428.5,428.9] },
+        { symbol: 'AMZN', name: 'Amazon.com', price: 214.20, change: 3.10, changePct: 1.47, spark: [211.1,211.6,212.2,212.8,213.1,213.6,213.9,214.2] },
+        { symbol: 'META', name: 'Meta Platforms', price: 612.40, change: 8.90, changePct: 1.47, spark: [603.5,605.0,606.8,608.2,609.5,610.8,611.6,612.4] },
+        { symbol: 'GOOGL', name: 'Alphabet Inc', price: 184.70, change: 1.95, changePct: 1.07, spark: [182.7,183.1,183.5,183.8,184.1,184.3,184.5,184.7] },
+        { symbol: 'AMD', name: 'Adv Micro Devices', price: 156.40, change: -1.20, changePct: -0.76, spark: [157.6,157.4,157.1,156.9,156.8,156.6,156.5,156.4] }
+      ]
+    };
+
+    // Particle / animation state pools
+    let t = 0;
+    let tickerScrollX = 0;
+
+    const stars = Array.from({ length: 260 }, () => ({
+      x: (Math.random() - 0.5) * W * 2,
+      y: (Math.random() - 0.5) * H * 2,
+      z: Math.random() * W
+    }));
+
+    const matrixCols = Math.floor(W / 18);
+    const matrixDrops = Array.from({ length: matrixCols }, () => Math.random() * -40);
+    const matrixChars = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEF<>+=';
+
+    const nodes = Array.from({ length: 95 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 1.4,
+      vy: (Math.random() - 0.5) * 1.1,
+      r: 2 + Math.random() * 2.5
+    }));
+
+    const raindrops = Array.from({ length: 140 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      len: 15 + Math.random() * 25,
+      speed: 6 + Math.random() * 10,
+      alpha: 0.2 + Math.random() * 0.5
+    }));
+
+    const bokehs = Array.from({ length: 45 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: 18 + Math.random() * 55,
+      dx: (Math.random() - 0.5) * 0.3,
+      dy: (Math.random() - 0.5) * 0.2,
+      hue: Math.random() > 0.5 ? 0 : 1
+    }));
+
+    const blobs = Array.from({ length: 14 }, (_, i) => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 2.2,
+      vy: (Math.random() - 0.5) * 1.8,
+      r: 70 + Math.random() * 90,
+      alt: i % 2 === 0
+    }));
+
+    const cityBuildings = Array.from({ length: 44 }, (_, i) => ({
+      x: i * 46,
+      w: 36 + (i * 17) % 28,
+      h: 120 + ((i * 73) % 240),
+      layer: i % 3,
+      neonSign: i % 5 === 0
+    }));
+
+    const flyingCars = Array.from({ length: 28 }, (_, i) => ({
+      x: Math.random() * W,
+      y: 70 + (i % 7) * 45,
+      speed: (3 + (i % 5) * 1.8) * (i % 2 === 0 ? 1 : -1),
+      len: 28 + (i % 4) * 16,
+      color: i % 2 === 0 ? '#00f2fe' : '#ff0055'
+    }));
+
+    const cyberCities = [
+      { name: 'KARACHI', x: 1180, y: 230 },
+      { name: 'ISLAMABAD', x: 1195, y: 185 },
+      { name: 'NEW YORK', x: 540, y: 170 },
+      { name: 'LONDON', x: 890, y: 140 },
+      { name: 'TOKYO', x: 1580, y: 185 },
+      { name: 'SINGAPORE', x: 1410, y: 285 },
+      { name: 'FRANKFURT', x: 945, y: 150 },
+      { name: 'SILICON VALLEY', x: 340, y: 190 },
+      { name: 'DUBAI', x: 1110, y: 225 },
+      { name: 'SYDNEY', x: 1640, y: 365 }
+    ];
+
+    const cyberArcs = Array.from({ length: 14 }, (_, i) => ({
+      from: i % cyberCities.length,
+      to: (i * 3 + 2) % cyberCities.length,
+      progress: Math.random(),
+      speed: 0.35 + (i % 4) * 0.15,
+      alt: i % 2 === 0
+    }));
+
+    function hexToRgb(hex) {
+      const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '#00f2fe');
+      return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : { r: 0, g: 242, b: 254 };
+    }
+
+    function fmtNum(n, decimals = 2) {
+      const v = Number(n) || 0;
+      return v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function fmtRs(n, decimals = 0) {
+      const v = Number(n) || 0;
+      return 'Rs. ' + v.toLocaleString('en-PK', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function getCurrencyMeta(mode, pkrRate) {
+      const cur = (mode || cfg.marketCurrency || 'USD').toUpperCase();
+      switch (cur) {
+        case 'PKR':
+          return { code: 'PKR', label: 'PAKISTANI RUPEE (PKR) LIVE SPOT', sym: 'Rs. ', rate: pkrRate || 278.65, dual: false };
+        case 'EUR':
+          return { code: 'EUR', label: 'EURO (EUR) LIVE SPOT', sym: '€', rate: 0.92, dual: false };
+        case 'GBP':
+          return { code: 'GBP', label: 'BRITISH POUND (GBP) LIVE SPOT', sym: '£', rate: 0.79, dual: false };
+        case 'AED':
+          return { code: 'AED', label: 'UAE DIRHAM (AED) LIVE SPOT', sym: 'AED ', rate: 3.6725, dual: false };
+        case 'SAR':
+          return { code: 'SAR', label: 'SAUDI RIYAL (SAR) LIVE SPOT', sym: 'SAR ', rate: 3.75, dual: false };
+        case 'BOTH':
+          return { code: 'BOTH', label: 'USD ($) + PAKISTANI RUPEE (Rs.)', sym: '$', rate: 1.0, pkrRate: pkrRate || 278.65, dual: true };
+        case 'USD':
+        default:
+          return { code: 'USD', label: 'US DOLLAR (USD) LIVE SPOT', sym: '$', rate: 1.0, dual: false };
+      }
+    }
+
+    function fmtConverted(usdVal, meta, forceDecimals = null) {
+      const v = (Number(usdVal) || 0) * (meta.rate || 1);
+      const dec = forceDecimals !== null ? forceDecimals : (v >= 100 ? (meta.code === 'PKR' ? 0 : 2) : (v >= 1 ? 2 : 4));
+      if (meta.code === 'PKR') {
+        return fmtRs(v, dec);
+      }
+      return meta.sym + fmtNum(v, dec);
+    }
+
+    function applyMediaState() {
+      syncStageScaling();
+      const mediaStage = document.getElementById('media-stage');
+      const customStage = document.getElementById('custom-html-stage');
+      const heroMain = document.getElementById('hero-main');
+      const heroSub = document.getElementById('center-sub-text');
+      const heroWrap = document.getElementById('center-hero-text');
+
+      heroMain.textContent = cfg.heroText || '';
+      heroSub.textContent = cfg.heroSubText || '';
+      heroWrap.style.setProperty('--hero-glow', cfg.accentColor || '#00f2fe');
+
+      if (cfg.screenMode === 'media' && cfg.mediaUrl) {
+        mediaStage.style.display = 'block';
+        customStage.style.display = 'none';
+        const img = document.getElementById('media-img');
+        const vid = document.getElementById('media-video');
+        const blurBg = document.getElementById('media-blur-bg');
+        const blurVid = document.getElementById('media-blur-vid');
+
+        const isContainOrBlur = cfg.mediaFit === 'contain' || cfg.mediaFit === 'blur-fill';
+        const fitCss = (cfg.mediaFit === 'stretch' || !cfg.mediaFit)
+          ? 'fill'
+          : (isContainOrBlur ? 'contain' : 'cover');
+        const sx = (cfg.mediaZoom || 1) * (cfg.mediaFlipH ? -1 : 1);
+        const sy = (cfg.mediaZoom || 1) * (cfg.mediaFlipV ? -1 : 1);
+        const rot = cfg.mediaRotate || 0;
+        const transformCss = `translate(${cfg.mediaPanX || 0}px, ${cfg.mediaPanY || 0}px) rotate(${rot}deg) scale(${sx}, ${sy})`;
+
+        if (cfg.mediaType === 'video') {
+          img.style.display = 'none';
+          blurBg.style.display = 'none';
+          vid.style.display = 'block';
+          vid.style.objectFit = fitCss;
+          vid.style.transform = transformCss;
+          if (vid.dataset.src !== cfg.mediaUrl) {
+            vid.dataset.src = cfg.mediaUrl;
+            vid.src = cfg.mediaUrl;
+            vid.play().catch(() => {});
+          }
+          if (isContainOrBlur) {
+            blurVid.style.display = 'block';
+            if (blurVid.dataset.src !== cfg.mediaUrl) {
+              blurVid.dataset.src = cfg.mediaUrl;
+              blurVid.src = cfg.mediaUrl;
+              blurVid.play().catch(() => {});
+            }
+          } else {
+            blurVid.pause();
+            blurVid.style.display = 'none';
+          }
+        } else {
+          vid.pause();
+          vid.style.display = 'none';
+          blurVid.pause();
+          blurVid.style.display = 'none';
+          img.style.display = 'block';
+          img.style.objectFit = fitCss;
+          img.style.transform = transformCss;
+          if (img.dataset.src !== cfg.mediaUrl) {
+            img.dataset.src = cfg.mediaUrl;
+            img.src = cfg.mediaUrl;
+            blurBg.src = cfg.mediaUrl;
+          }
+          blurBg.style.display = isContainOrBlur ? 'block' : 'none';
+        }
+      } else if (cfg.screenMode === 'customhtml') {
+        mediaStage.style.display = 'none';
+        customStage.style.display = 'block';
+        if (customStage.dataset.raw !== cfg.customHtml) {
+          customStage.dataset.raw = cfg.customHtml;
+          customStage.innerHTML = cfg.customHtml || '';
+        }
+      } else {
+        mediaStage.style.display = 'none';
+        customStage.style.display = 'none';
+      }
+    }
+
+    function getBassBoost() {
+      if (!cfg.audioReactive || !telem.spectrum) return 0;
+      let s = 0;
+      for (let i = 0; i < 8; i++) s += (telem.spectrum[i] || 0);
+      return Math.min(1, s / 4);
+    }
+
+    function drawSparkline(points, x, y, w, h, strokeColor, fillAlpha = 0.22) {
+      if (!points || points.length < 2) return;
+      let min = Infinity, max = -Infinity;
+      for (let p of points) {
+        if (p < min) min = p;
+        if (p > max) max = p;
+      }
+      if (max - min < 1e-6) { max += 1; min -= 1; }
+
+      ctx.save();
+      ctx.beginPath();
+      for (let i = 0; i < points.length; i++) {
+        const px = x + (i / (points.length - 1)) * w;
+        const py = y + h - ((points[i] - min) / (max - min)) * (h - 8) - 4;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 2.2;
+      ctx.shadowColor = strokeColor;
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+
+      if (fillAlpha > 0) {
+        ctx.lineTo(x + w, y + h);
+        ctx.lineTo(x, y + h);
+        ctx.closePath();
+        const g = ctx.createLinearGradient(0, y, 0, y + h);
+        g.addColorStop(0, strokeColor);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = fillAlpha;
+        ctx.fillStyle = g;
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // ============================================================================
+    // THEME 1: ₿ BITCOIN & CRYPTO LIVE TERMINAL (SELECTABLE CURRENCY: USD DEFAULT)
+    // ============================================================================
+    function drawBtcTerminal(dt, bass) {
+      const bg = ctx.createLinearGradient(0, 0, W, H);
+      bg.addColorStop(0, '#050811');
+      bg.addColorStop(0.5, '#091022');
+      bg.addColorStop(1, '#050814');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.strokeStyle = 'rgba(247, 147, 26, 0.06)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 48) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 48) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+      const coins = marketData.crypto || [];
+      const btc = coins[0] || { symbol: 'BTC', name: 'Bitcoin', priceUsd: 96240, change24h: 3.45, high24h: 96850, low24h: 92900 };
+      const pkrRate = Number(marketData.usdToPkr) || 278.65;
+      const curMeta = getCurrencyMeta(cfg.marketCurrency, pkrRate);
+      const isUp = Number(btc.change24h) >= 0;
+      const mainCol = isUp ? '#10b981' : '#ef4444';
+
+      // Left Hero BTC Panel (x: 16, y: 14, w: 548, h: 388)
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(16, 14, 548, 388, 16);
+      ctx.fillStyle = 'rgba(13, 20, 38, 0.90)';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(247, 147, 26, 0.45)';
+      ctx.stroke();
+      ctx.clip();
+
+      ctx.fillStyle = '#f7931a';
+      ctx.beginPath();
+      ctx.arc(58, 56, 24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 26px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText('₿', 58, 65);
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '900 22px Segoe UI';
+      ctx.fillText(`BITCOIN // BTC/${curMeta.code === 'BOTH' ? 'USD' : curMeta.code}`, 94, 52);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 12px Segoe UI';
+      ctx.fillText(`GLOBAL 24/7 CRYPTO SPOT FEED  ·  ${curMeta.code}`, 94, 72);
+
+      // Change Pill
+      ctx.fillStyle = isUp ? 'rgba(16, 185, 129, 0.18)' : 'rgba(239, 68, 68, 0.18)';
+      ctx.strokeStyle = mainCol;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(432, 34, 114, 34, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = mainCol;
+      ctx.font = '800 15px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${isUp ? '▲ +' : '▼ '}${fmtNum(btc.change24h, 2)}%`, 489, 56);
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#f7931a';
+      ctx.font = '800 13px Segoe UI';
+      ctx.fillText(curMeta.label, 34, 112);
+
+      if (curMeta.dual) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 40px Segoe UI';
+        ctx.fillText(`$${fmtNum(btc.priceUsd, 2)}`, 34, 156);
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = '800 24px Consolas, monospace';
+        ctx.fillText(fmtRs(btc.priceUsd * pkrRate, 0), 34, 192);
+      } else {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 46px Segoe UI';
+        ctx.fillText(fmtConverted(btc.priceUsd, curMeta, curMeta.code === 'PKR' ? 0 : 2), 34, 166);
+        ctx.fillStyle = isUp ? '#4ade80' : '#ef4444';
+        ctx.font = '700 16px Segoe UI';
+        const diffVal = (btc.priceUsd * (Number(btc.change24h) / 100));
+        ctx.fillText(`24H CHANGE: ${isUp ? '+' : '-'}${fmtConverted(Math.abs(diffVal), curMeta, curMeta.code === 'PKR' ? 0 : 2)} (${isUp ? '+' : ''}${fmtNum(btc.change24h, 2)}%)`, 34, 196);
+      }
+
+      const statsY = 216;
+      const boxW = 162;
+      const statItems = [
+        { label: `24H HIGH (${curMeta.code === 'BOTH' ? 'USD' : curMeta.code})`, val: fmtConverted(btc.high24h || btc.priceUsd * 1.015, curMeta, 0) },
+        { label: `24H LOW (${curMeta.code === 'BOTH' ? 'USD' : curMeta.code})`, val: fmtConverted(btc.low24h || btc.priceUsd * 0.975, curMeta, 0) },
+        { label: '24H VOLUME', val: btc.vol24h || '42.8B' }
+      ];
+      statItems.forEach((st, idx) => {
+        const bx = 34 + idx * 170;
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.beginPath();
+        ctx.roundRect(bx, statsY, boxW, 54, 10);
+        ctx.fill();
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '700 10px Segoe UI';
+        ctx.fillText(st.label, bx + 12, statsY + 19);
+        ctx.fillStyle = idx === 2 ? '#4ade80' : '#f8fafc';
+        ctx.font = '800 15px Consolas, monospace';
+        ctx.fillText(st.val, bx + 12, statsY + 41);
+      });
+
+      // PC Telemetry strip inside BTC card
+      ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      ctx.beginPath();
+      ctx.roundRect(34, 286, 502, 96, 12);
+      ctx.fill();
+      ctx.fillStyle = '#00f2fe';
+      ctx.font = '800 11px Segoe UI';
+      ctx.fillText('SYSTEM HARDWARE TELEMETRY', 48, 308);
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '800 18px Segoe UI';
+      ctx.fillText(`CPU ${Math.round(telem.cpuTemp)}°C (${Math.round(telem.cpuUsage)}%)`, 48, 338);
+      ctx.fillText(`GPU ${Math.round(telem.gpuTemp)}°C (${Math.round(telem.gpuUsage)}%)`, 228, 338);
+      ctx.fillText(`RAM ${Math.round(telem.ramUsage)}%`, 410, 338);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 12px Consolas, monospace';
+      ctx.fillText(`${Math.round(telem.cpuClock)} MHz  ·  GPU ${Math.round(telem.gpuPower)}W  ·  ${new Date().toLocaleTimeString()}`, 48, 366);
+      ctx.restore();
+
+      // Center Intraday BTC Live Chart Panel (x: 576, y: 14, w: 608, h: 388)
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(576, 14, 608, 388, 16);
+      ctx.fillStyle = 'rgba(13, 20, 38, 0.88)';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.stroke();
+      ctx.clip();
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '800 15px Segoe UI';
+      ctx.fillText(`📈 BTC/${curMeta.code === 'BOTH' ? 'USD' : curMeta.code} INTRADAY MOMENTUM CHART`, 598, 44);
+      ctx.fillStyle = '#f7931a';
+      ctx.font = '700 13px Consolas, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(fmtConverted(btc.priceUsd, curMeta, curMeta.code === 'PKR' ? 0 : 2), 1162, 44);
+      ctx.textAlign = 'left';
+
+      const chartPts = (marketData.btcChart && marketData.btcChart.length > 3) ? marketData.btcChart : (btc.spark || [94000, 95000, 96000]);
+      drawSparkline(chartPts, 596, 64, 568, 316, isUp ? '#f7931a' : '#ef4444', 0.28);
+      ctx.restore();
+
+      // Right 6-Coin Watchlist Grid (x: 1196, y: 14, w: 708 -> 2 cols x 3 rows)
+      const altCoins = coins.slice(1, 7);
+      const cardW = 348;
+      const cardH = 122;
+      altCoins.forEach((c, idx) => {
+        const col = idx % 2;
+        const row = Math.floor(idx / 2);
+        const cx = 1196 + col * (cardW + 12);
+        const cy = 14 + row * (cardH + 11);
+        const up = Number(c.change24h) >= 0;
+        const cCol = up ? '#10b981' : '#ef4444';
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(cx, cy, cardW, cardH, 14);
+        ctx.fillStyle = 'rgba(13, 20, 38, 0.90)';
+        ctx.fill();
+        ctx.strokeStyle = up ? 'rgba(16, 185, 129, 0.30)' : 'rgba(239, 68, 68, 0.30)';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        ctx.clip();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 18px Segoe UI';
+        ctx.fillText(c.symbol, cx + 14, cy + 28);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '600 11px Segoe UI';
+        ctx.fillText(c.name || '', cx + 68, cy + 27);
+
+        ctx.fillStyle = cCol;
+        ctx.font = '800 13px Segoe UI';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${up ? '▲ +' : '▼ '}${fmtNum(c.change24h, 2)}%`, cx + cardW - 14, cy + 27);
+
+        ctx.textAlign = 'left';
+        if (curMeta.dual) {
+          ctx.fillStyle = '#f8fafc';
+          ctx.font = '900 19px Segoe UI';
+          ctx.fillText(`$${c.priceUsd >= 10 ? fmtNum(c.priceUsd, 2) : fmtNum(c.priceUsd, 4)}`, cx + 14, cy + 56);
+          ctx.fillStyle = '#38bdf8';
+          ctx.font = '700 12px Consolas, monospace';
+          const cPkr = (Number(c.priceUsd) || 0) * pkrRate;
+          ctx.fillText(cPkr >= 100 ? fmtRs(cPkr, 0) : fmtRs(cPkr, 2), cx + 14, cy + 75);
+        } else {
+          ctx.fillStyle = '#f8fafc';
+          ctx.font = '900 24px Segoe UI';
+          ctx.fillText(fmtConverted(c.priceUsd, curMeta), cx + 14, cy + 64);
+        }
+
+        if (c.spark && c.spark.length > 2) {
+          drawSparkline(c.spark, cx + 14, cy + 82, cardW - 28, 32, cCol, 0.18);
+        }
+        ctx.restore();
+      });
+
+      drawBottomTickerTape(
+        coins.map(c => ({
+          tag: c.symbol,
+          price: curMeta.dual
+            ? `$${c.priceUsd >= 10 ? fmtNum(c.priceUsd, 2) : fmtNum(c.priceUsd, 3)} (${fmtRs(c.priceUsd * pkrRate, c.priceUsd * pkrRate >= 100 ? 0 : 2)})`
+            : fmtConverted(c.priceUsd, curMeta),
+          chg: Number(c.change24h)
+        })),
+        '#f7931a'
+      );
+    }
+
+    // ============================================================================
+    // THEME 2: 🇵🇰 PSX PAKISTAN STOCK EXCHANGE LIVE BOARD (KSE-100 & Rs. Stocks)
+    // ============================================================================
+    function drawPsxStocks(dt, bass) {
+      const bg = ctx.createLinearGradient(0, 0, W, H);
+      bg.addColorStop(0, '#03120e');
+      bg.addColorStop(0.5, '#061d17');
+      bg.addColorStop(1, '#030d12');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.06)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 48) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 48) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+      const kse = marketData.kse100 || { value: 114850.45, change: 1245.80, changePct: 1.10, spark: [113800, 114200, 114850] };
+      const kseUp = Number(kse.changePct) >= 0;
+      const kseCol = kseUp ? '#10b981' : '#ef4444';
+
+      // Left KSE-100 Index Hero Panel (x: 16, y: 14, w: 530, h: 388)
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(16, 14, 530, 388, 16);
+      ctx.fillStyle = 'rgba(6, 28, 22, 0.92)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.clip();
+
+      ctx.fillStyle = '#059669';
+      ctx.beginPath();
+      ctx.roundRect(34, 30, 72, 32, 8);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 17px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText('PSX', 70, 52);
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 21px Segoe UI';
+      ctx.fillText('KSE-100 INDEX // KARACHI', 118, 49);
+      ctx.fillStyle = '#6ee7b7';
+      ctx.font = '600 11.5px Segoe UI';
+      ctx.fillText('PAKISTAN STOCK EXCHANGE  ·  RUPEE (Rs.)', 118, 68);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 44px Segoe UI';
+      ctx.fillText(fmtNum(kse.value, 2), 34, 128);
+
+      ctx.fillStyle = kseCol;
+      ctx.font = '800 18px Segoe UI';
+      ctx.fillText(`${kseUp ? '▲ +' : '▼ '}${fmtNum(kse.change, 2)} pts  (${kseUp ? '+' : ''}${fmtNum(kse.changePct, 2)}%)`, 34, 158);
+
+      drawSparkline(kse.spark || [113500, 114000, 114500, 114850], 34, 176, 494, 172, kseCol, 0.28);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 12px Segoe UI';
+      ctx.fillText(`TIME: ${new Date().toLocaleTimeString()}   ·   CPU ${Math.round(telem.cpuTemp)}°C   ·   GPU ${Math.round(telem.gpuTemp)}°C`, 34, 382);
+      ctx.restore();
+
+      // Right 8-Card PSX Blue-Chip Stock Grid (x: 560, y: 14 -> 4 cols x 2 rows)
+      const stocks = (marketData.psxStocks || []).slice(0, 8);
+      const cardW = 326;
+      const cardH = 188;
+      stocks.forEach((st, idx) => {
+        const col = idx % 4;
+        const row = Math.floor(idx / 4);
+        const cx = 560 + col * (cardW + 13);
+        const cy = 14 + row * (cardH + 12);
+        const up = Number(st.changePct) >= 0;
+        const sCol = up ? '#10b981' : '#ef4444';
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(cx, cy, cardW, cardH, 14);
+        ctx.fillStyle = 'rgba(8, 25, 22, 0.90)';
+        ctx.fill();
+        ctx.strokeStyle = up ? 'rgba(16, 185, 129, 0.32)' : 'rgba(239, 68, 68, 0.32)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.clip();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 21px Segoe UI';
+        ctx.fillText(st.symbol, cx + 16, cy + 32);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '600 11.5px Segoe UI';
+        ctx.fillText((st.name || '').slice(0, 22), cx + 16, cy + 50);
+
+        ctx.fillStyle = up ? 'rgba(16, 185, 129, 0.18)' : 'rgba(239, 68, 68, 0.18)';
+        ctx.beginPath();
+        ctx.roundRect(cx + cardW - 98, cy + 12, 84, 28, 7);
+        ctx.fill();
+        ctx.fillStyle = sCol;
+        ctx.font = '800 13px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${up ? '+' : ''}${fmtNum(st.changePct, 2)}%`, cx + cardW - 56, cy + 31);
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '900 26px Segoe UI';
+        ctx.fillText(fmtRs(st.price, 2), cx + 16, cy + 88);
+
+        ctx.fillStyle = sCol;
+        ctx.font = '700 12.5px Consolas, monospace';
+        ctx.fillText(`${up ? '▲ +' : '▼ '}Rs. ${fmtNum(Math.abs(st.change || 0), 2)}`, cx + 16, cy + 110);
+
+        if (st.spark && st.spark.length > 2) {
+          drawSparkline(st.spark, cx + 14, cy + 122, cardW - 28, 52, sCol, 0.22);
+        }
+        ctx.restore();
+      });
+
+      drawBottomTickerTape(
+        (marketData.psxStocks || []).map(s => ({
+          tag: s.symbol,
+          price: fmtRs(s.price, 2),
+          chg: Number(s.changePct)
+        })),
+        '#10b981'
+      );
+    }
+
+    // ============================================================================
+    // THEME 3: 🇺🇸 US WALL STREET STOCK TICKER & CHART (NASDAQ / S&P 500 / NVDA)
+    // ============================================================================
+    function drawUsStocks(dt, bass) {
+      const bg = ctx.createLinearGradient(0, 0, W, H);
+      bg.addColorStop(0, '#040816');
+      bg.addColorStop(0.5, '#09132c');
+      bg.addColorStop(1, '#040712');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.06)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 48) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 48) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+      const stocks = (marketData.usStocks || []).slice(0, 8);
+      const heroStock = stocks[0] || { symbol: 'NVDA', name: 'NVIDIA Corp', price: 138.60, change: 4.25, changePct: 3.16, spark: [134, 136, 138.6] };
+      const heroUp = Number(heroStock.changePct) >= 0;
+      const heroCol = heroUp ? '#38bdf8' : '#ef4444';
+      const pkrRate = Number(marketData.usdToPkr) || 278.65;
+      const curMeta = getCurrencyMeta(cfg.marketCurrency, pkrRate);
+
+      // Left Wall Street Hero Panel (x: 16, y: 14, w: 530, h: 388)
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(16, 14, 530, 388, 16);
+      ctx.fillStyle = 'rgba(10, 19, 42, 0.92)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.clip();
+
+      ctx.fillStyle = '#0284c7';
+      ctx.beginPath();
+      ctx.roundRect(34, 30, 84, 32, 8);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 15px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText('WALL ST', 76, 51);
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 21px Segoe UI';
+      ctx.fillText(`NASDAQ // ${heroStock.symbol} LIVE`, 130, 49);
+      ctx.fillStyle = '#7dd3fc';
+      ctx.font = '600 11.5px Segoe UI';
+      ctx.fillText(`${heroStock.name}  ·  US MARKET (${curMeta.code})`, 130, 68);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 42px Segoe UI';
+      ctx.fillText(fmtConverted(heroStock.price, curMeta, curMeta.code === 'PKR' ? 0 : 2), 34, 126);
+
+      if (curMeta.dual) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '700 17px Segoe UI';
+        ctx.fillText(`(${fmtRs(heroStock.price * pkrRate, 0)})`, 235, 124);
+      }
+
+      ctx.fillStyle = heroUp ? '#4ade80' : '#ef4444';
+      ctx.font = '800 17px Segoe UI';
+      ctx.fillText(`${heroUp ? '▲ +' : '▼ '}${fmtConverted(Math.abs(heroStock.change || 0), curMeta, 2)} (${heroUp ? '+' : ''}${fmtNum(heroStock.changePct, 2)}%)`, 34, 156);
+
+      drawSparkline(heroStock.spark || [134, 135, 137, 138.6], 34, 174, 494, 174, heroCol, 0.28);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 12px Segoe UI';
+      ctx.fillText(`NYSE / NASDAQ   ·   CPU ${Math.round(telem.cpuTemp)}°C   ·   GPU ${Math.round(telem.gpuTemp)}°C`, 34, 382);
+      ctx.restore();
+
+      // Right 8-Card US Tech & Blue-Chip Grid (x: 560, 4 cols x 2 rows)
+      const cardW = 326;
+      const cardH = 188;
+      stocks.forEach((st, idx) => {
+        const col = idx % 4;
+        const row = Math.floor(idx / 4);
+        const cx = 560 + col * (cardW + 13);
+        const cy = 14 + row * (cardH + 12);
+        const up = Number(st.changePct) >= 0;
+        const sCol = up ? '#22c55e' : '#ef4444';
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(cx, cy, cardW, cardH, 14);
+        ctx.fillStyle = 'rgba(12, 21, 44, 0.90)';
+        ctx.fill();
+        ctx.strokeStyle = up ? 'rgba(56, 189, 248, 0.30)' : 'rgba(239, 68, 68, 0.30)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.clip();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 21px Segoe UI';
+        ctx.fillText(st.symbol, cx + 16, cy + 32);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '600 11.5px Segoe UI';
+        ctx.fillText((st.name || '').slice(0, 22), cx + 16, cy + 50);
+
+        ctx.fillStyle = up ? 'rgba(34, 197, 94, 0.18)' : 'rgba(239, 68, 68, 0.18)';
+        ctx.beginPath();
+        ctx.roundRect(cx + cardW - 98, cy + 12, 84, 28, 7);
+        ctx.fill();
+        ctx.fillStyle = sCol;
+        ctx.font = '800 13px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${up ? '+' : ''}${fmtNum(st.changePct, 2)}%`, cx + cardW - 56, cy + 31);
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '900 26px Segoe UI';
+        ctx.fillText(fmtConverted(st.price, curMeta, curMeta.code === 'PKR' ? 0 : 2), cx + 16, cy + 88);
+
+        if (curMeta.dual) {
+          ctx.fillStyle = '#38bdf8';
+          ctx.font = '700 12.5px Segoe UI';
+          ctx.fillText(`≈ ${fmtRs(st.price * pkrRate, 0)}`, cx + 16, cy + 110);
+        } else {
+          ctx.fillStyle = sCol;
+          ctx.font = '700 12.5px Consolas, monospace';
+          ctx.fillText(`${up ? '▲ +' : '▼ '}${fmtConverted(Math.abs(st.change || 0), curMeta, 2)}`, cx + 16, cy + 110);
+        }
+
+        if (st.spark && st.spark.length > 2) {
+          drawSparkline(st.spark, cx + 14, cy + 122, cardW - 28, 52, sCol, 0.22);
+        }
+        ctx.restore();
+      });
+
+      drawBottomTickerTape(
+        stocks.map(s => ({
+          tag: s.symbol,
+          price: curMeta.dual
+            ? `$${fmtNum(s.price, 2)} (${fmtRs(s.price * pkrRate, 0)})`
+            : fmtConverted(s.price, curMeta, curMeta.code === 'PKR' ? 0 : 2),
+          chg: Number(s.changePct)
+        })),
+        '#38bdf8'
+      );
+    }
+
+    function drawBottomTickerTape(items, accentCol) {
+      if (!items || items.length === 0) return;
+      ctx.save();
+      ctx.fillStyle = 'rgba(4, 8, 18, 0.96)';
+      ctx.fillRect(0, 414, W, 48);
+      ctx.strokeStyle = accentCol;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, 414);
+      ctx.lineTo(W, 414);
+      ctx.stroke();
+
+      tickerScrollX = (tickerScrollX + 1.8 * (cfg.animSpeed || 1)) % 2400;
+      ctx.font = '800 14.5px Segoe UI';
+      let xCursor = -tickerScrollX;
+      for (let loop = 0; loop < 3; loop++) {
+        for (let it of items) {
+          const up = it.chg >= 0;
+          if (xCursor > -360 && xCursor < W + 100) {
+            ctx.fillStyle = accentCol;
+            ctx.fillText(it.tag, xCursor, 444);
+            const tagW = ctx.measureText(it.tag).width + 10;
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillText(it.price, xCursor + tagW, 444);
+            const priceW = ctx.measureText(it.price).width + 10;
+
+            ctx.fillStyle = up ? '#22c55e' : '#ef4444';
+            const chgStr = `${up ? '▲+' : '▼'}${fmtNum(it.chg, 2)}%`;
+            ctx.fillText(chgStr, xCursor + tagW + priceW, 444);
+          }
+          xCursor += 315;
+        }
+      }
+      ctx.restore();
+    }
+
+    // ============================================================================
+    // BUILT-IN THEME: 🛡️ GLOBAL CYBER THREAT & RADAR MAP
+    // ============================================================================
+    function drawCyberMap(dt, bass) {
+      ctx.fillStyle = '#030812';
+      ctx.fillRect(0, 0, W, H);
+
+      const c1 = cfg.accentColor || '#00f2fe';
+      const c2 = cfg.secondaryColor || '#ff0055';
+
+      // World tactical grid
+      ctx.strokeStyle = 'rgba(0, 242, 254, 0.08)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+      // Rotating Radar Circle on Left (x: 210, y: 231, r: 175)
+      ctx.save();
+      ctx.translate(210, 231);
+      ctx.strokeStyle = 'rgba(0, 242, 254, 0.35)';
+      ctx.lineWidth = 2;
+      [60, 115, 175].forEach(r => {
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+      });
+      ctx.rotate(t * 1.4);
+      const sweepGrad = ctx.createLinearGradient(0, 0, 175, 0);
+      sweepGrad.addColorStop(0, 'rgba(0, 242, 254, 0.45)');
+      sweepGrad.addColorStop(1, 'rgba(0, 242, 254, 0.05)');
+      ctx.fillStyle = sweepGrad;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, 175, 0, 0.55);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // City nodes & ballistic cyber arcs
+      for (let arc of cyberArcs) {
+        arc.progress += dt * arc.speed * (cfg.animSpeed || 1);
+        if (arc.progress > 1) arc.progress = 0;
+        const p1 = cyberCities[arc.from];
+        const p2 = cyberCities[arc.to];
+        const cx = (p1.x + p2.x) / 2;
+        const cy = Math.min(p1.y, p2.y) - 90;
+
+        ctx.save();
+        ctx.strokeStyle = arc.alt ? 'rgba(0, 242, 254, 0.28)' : 'rgba(255, 0, 85, 0.28)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.quadraticCurveTo(cx, cy, p2.x, p2.y);
+        ctx.stroke();
+
+        // Moving packet head
+        const u = arc.progress;
+        const px = (1 - u) * (1 - u) * p1.x + 2 * (1 - u) * u * cx + u * u * p2.x;
+        const py = (1 - u) * (1 - u) * p1.y + 2 * (1 - u) * u * cy + u * u * p2.y;
+        ctx.fillStyle = arc.alt ? c1 : c2;
+        ctx.shadowColor = arc.alt ? c1 : c2;
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.arc(px, py, 4.5 + bass * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      for (let city of cyberCities) {
+        ctx.save();
+        ctx.fillStyle = c1;
+        ctx.shadowColor = c1;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(city.x, city.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.font = '700 11px Segoe UI';
+        ctx.fillText(city.name, city.x + 8, city.y + 4);
+        ctx.restore();
+      }
+    }
+
+    // ============================================================================
+    // BUILT-IN THEME: 🌃 CYBERPUNK NIGHT CITY SKYLINE
+    // ============================================================================
+    function drawCyberCity(dt, bass) {
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, '#040210');
+      sky.addColorStop(0.55, '#12072b');
+      sky.addColorStop(1, '#240b36');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, H);
+
+      const c1 = cfg.accentColor || '#00f2fe';
+      const c2 = cfg.secondaryColor || '#ff007f';
+
+      ctx.save();
+      ctx.fillStyle = c2;
+      ctx.shadowColor = c2;
+      ctx.shadowBlur = 50 + bass * 35;
+      ctx.beginPath();
+      ctx.arc(W * 0.78, 120, 75 + bass * 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      for (let layer = 0; layer < 3; layer++) {
+        const speed = (layer + 1) * 14;
+        const offset = (t * speed) % W;
+        for (let b of cityBuildings) {
+          if (b.layer !== layer) continue;
+          const bx = (b.x - offset + W * 2) % W - 40;
+          const by = H - b.h;
+          ctx.fillStyle = layer === 0 ? '#070414' : (layer === 1 ? '#0c0722' : '#110a2e');
+          ctx.fillRect(bx, by, b.w, b.h);
+
+          ctx.strokeStyle = layer % 2 === 0 ? c1 : c2;
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(bx, by, b.w, b.h);
+
+          ctx.fillStyle = b.neonSign ? c2 : 'rgba(0, 242, 254, 0.55)';
+          for (let wy = by + 12; wy < H - 18; wy += 16) {
+            for (let wx = bx + 6; wx < bx + b.w - 8; wx += 10) {
+              if (((wx + wy) % 3) !== 0) {
+                ctx.fillRect(wx, wy, 5, 8);
+              }
+            }
+          }
+        }
+      }
+
+      ctx.save();
+      for (let car of flyingCars) {
+        car.x += car.speed * (cfg.animSpeed || 1) * (1 + bass * 0.5);
+        if (car.x > W + 80) car.x = -80;
+        if (car.x < -80) car.x = W + 80;
+
+        ctx.strokeStyle = car.color;
+        ctx.shadowColor = car.color;
+        ctx.shadowBlur = 12;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(car.x, car.y);
+        ctx.lineTo(car.x + car.len, car.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // ============================================================================
+    // CLOCK HELPER: 3D MECHANICAL SPLIT-FLAP CARD RENDERER (WITH ANIMATED FOLD)
+    // ============================================================================
+    let flapState = {};
+    function drawMechanicalFlapDrum(x, y, w, h, currentVal, keyId, opts = {}) {
+      const nowMs = performance.now();
+      if (!flapState[keyId]) {
+        flapState[keyId] = { cur: currentVal, prev: currentVal, startMs: 0 };
+      } else if (flapState[keyId].cur !== currentVal) {
+        flapState[keyId].prev = flapState[keyId].cur;
+        flapState[keyId].cur = currentVal;
+        flapState[keyId].startMs = nowMs;
+      }
+      const st = flapState[keyId];
+      const animDur = opts.duration || 420;
+      const p = st.startMs ? Math.min(1, (nowMs - st.startMs) / animDur) : 1;
+
+      const radius = opts.radius || 18;
+      const fontSize = opts.fontSize || 235;
+      const fontFamily = opts.fontFamily || "'Segoe UI', 'Arial Black', sans-serif";
+      const textY = y + h * 0.5 + fontSize * 0.345;
+      const midY = y + h * 0.5;
+
+      // Outer Drum Shadow & Matte Black Body
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+      ctx.shadowBlur = 28;
+      ctx.shadowOffsetY = 12;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, radius);
+      const bodyGrad = ctx.createLinearGradient(x, y, x, y + h);
+      bodyGrad.addColorStop(0, '#27272a');
+      bodyGrad.addColorStop(0.12, '#18181b');
+      bodyGrad.addColorStop(0.5, '#121215');
+      bodyGrad.addColorStop(0.88, '#18181b');
+      bodyGrad.addColorStop(1, '#09090b');
+      ctx.fillStyle = bodyGrad;
+      ctx.fill();
+      ctx.restore();
+
+      // Ribbed stacked-flap ridges at top and bottom of drum (Mooas signature detail)
+      if (opts.ribbed !== false) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, radius);
+        ctx.clip();
+        for (let i = 1; i <= 7; i++) {
+          const ryTop = y + i * 4.5;
+          ctx.strokeStyle = i % 2 === 0 ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.65)';
+          ctx.lineWidth = 1.4;
+          ctx.beginPath(); ctx.moveTo(x + 8, ryTop); ctx.lineTo(x + w - 8, ryTop); ctx.stroke();
+
+          const ryBot = y + h - i * 4.5;
+          ctx.beginPath(); ctx.moveTo(x + 8, ryBot); ctx.lineTo(x + w - 8, ryBot); ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // Helper to render half-card content
+      function renderCardHalf(valStr, isTop, extraBrightness = 0) {
+        ctx.save();
+        ctx.beginPath();
+        if (isTop) {
+          ctx.rect(x, y, w, h * 0.5);
+        } else {
+          ctx.rect(x, midY, w, h * 0.5);
+        }
+        ctx.clip();
+
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, radius);
+        const halfGrad = ctx.createLinearGradient(x, isTop ? y : midY, x, isTop ? midY : y + h);
+        if (isTop) {
+          halfGrad.addColorStop(0, '#222226');
+          halfGrad.addColorStop(1, '#151518');
+        } else {
+          halfGrad.addColorStop(0, '#141417');
+          halfGrad.addColorStop(1, '#1d1d21');
+        }
+        ctx.fillStyle = halfGrad;
+        ctx.fill();
+
+        if (opts.badgeText) {
+          ctx.fillStyle = '#e4e4e7';
+          ctx.font = `800 ${opts.badgeSize || 28}px 'Segoe UI', sans-serif`;
+          ctx.textAlign = 'left';
+          ctx.fillText(opts.badgeText, x + 28, y + (opts.badgeY || 72));
+        }
+
+        if (opts.subLabel && !isTop) {
+          ctx.fillStyle = opts.subLabelColor || '#71717a';
+          ctx.font = '800 13px Segoe UI';
+          ctx.textAlign = 'center';
+          ctx.fillText(opts.subLabel, x + w * 0.5, y + h - 14);
+        }
+
+        ctx.fillStyle = opts.textColor || '#f4f4f5';
+        if (opts.glowColor) {
+          ctx.shadowColor = opts.glowColor;
+          ctx.shadowBlur = 12;
+        }
+        ctx.font = `800 ${fontSize}px ${fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.fillText(valStr, x + w * 0.5 + (opts.textOffsetX || 0), textY);
+        ctx.shadowBlur = 0;
+
+        if (extraBrightness !== 0) {
+          ctx.fillStyle = extraBrightness > 0
+            ? `rgba(255,255,255,${extraBrightness})`
+            : `rgba(0,0,0,${-extraBrightness})`;
+          ctx.fillRect(x, y, w, h);
+        }
+        ctx.restore();
+      }
+
+      if (p >= 1) {
+        renderCardHalf(st.cur, true, 0);
+        renderCardHalf(st.cur, false, 0);
+      } else {
+        // Static top = new value, static bottom = old value
+        renderCardHalf(st.cur, true, 0);
+        renderCardHalf(st.prev, false, 0);
+
+        // Animated folding flap
+        if (p < 0.5) {
+          const scaleY = Math.cos(p * Math.PI); // 1 -> 0
+          ctx.save();
+          ctx.translate(0, midY);
+          ctx.scale(1, Math.max(0.02, scaleY));
+          ctx.translate(0, -midY);
+          renderCardHalf(st.prev, true, -p * 0.7);
+          ctx.restore();
+        } else {
+          const scaleY = Math.sin((p - 0.5) * Math.PI); // 0 -> 1
+          ctx.save();
+          ctx.translate(0, midY);
+          ctx.scale(1, Math.max(0.02, scaleY));
+          ctx.translate(0, -midY);
+          renderCardHalf(st.cur, false, (1 - p) * 0.35);
+          ctx.restore();
+        }
+      }
+
+      // Horizontal Split Gap & Metallic Hinge Clips (Mooas mechanical detail)
+      ctx.save();
+      ctx.fillStyle = '#050507';
+      ctx.fillRect(x, midY - 2.5, w, 5);
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, midY + 2.5);
+      ctx.lineTo(x + w, midY + 2.5);
+      ctx.stroke();
+
+      // Center vertical flap retainer clips (like the uploaded Mooas photo)
+      const clipPositions = opts.twoDigits ? [x + w * 0.28, x + w * 0.72] : [x + w * 0.5];
+      clipPositions.forEach(cx => {
+        ctx.fillStyle = '#09090b';
+        ctx.strokeStyle = '#3f3f46';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(cx - 5, midY - 24, 10, 48, 4);
+        ctx.fill();
+        ctx.stroke();
+      });
+
+      // Outer subtle border
+      ctx.strokeStyle = opts.borderColor || 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, radius);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ============================================================================
+    // CLOCK THEME 1: 🕰️ MOOAS MECHANICAL SPLIT-FLAP DESK CLOCK (FROM USER PHOTO)
+    // ============================================================================
+    function drawMooasFlipClock(dt, bass) {
+      // Studio ambient dark radial backdrop with subtle warm walnut reflection
+      const bg = ctx.createRadialGradient(W * 0.5, H * 0.45, 50, W * 0.5, H * 0.5, W * 0.65);
+      bg.addColorStop(0, '#18181c');
+      bg.addColorStop(0.6, '#0c0c10');
+      bg.addColorStop(1, '#050507');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      const now = new Date();
+      const rawH = now.getHours();
+      const isPm = rawH >= 12;
+      const amPm = isPm ? 'PM' : 'AM';
+      const displayH = cfg.clock24h ? String(rawH).padStart(2, '0') : String(rawH % 12 || 12);
+      const displayM = String(now.getMinutes()).padStart(2, '0');
+      const displayS = String(now.getSeconds()).padStart(2, '0');
+      const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+
+      // Layout geometry centered around the Mooas T-Bridge & Walnut Base
+      const centerX = W * 0.5 - 110; // Slight shift left to accommodate matching Seconds drum on right
+      const drumY = 42;
+      const drumH = 306;
+      const hourW = 540;
+      const minW = 540;
+      const gapBridge = 112;
+      const hourX = centerX - gapBridge * 0.5 - hourW;
+      const minX = centerX + gapBridge * 0.5;
+      const secX = minX + minW + 46;
+      const secW = 280;
+
+      // 1. Dark Walnut Wooden Base & Brushed Chrome Pedestal Column
+      ctx.save();
+      // Floor shadow under walnut base
+      const floorShadow = ctx.createRadialGradient(centerX, 434, 20, centerX, 434, 480);
+      floorShadow.addColorStop(0, 'rgba(0,0,0,0.85)');
+      floorShadow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = floorShadow;
+      ctx.fillRect(centerX - 500, 412, 1000, 45);
+
+      // Brushed stainless steel vertical column connecting bridge to walnut base
+      const colGrad = ctx.createLinearGradient(centerX - 28, 355, centerX + 28, 355);
+      colGrad.addColorStop(0, '#27272a');
+      colGrad.addColorStop(0.25, '#e4e4e7');
+      colGrad.addColorStop(0.5, '#71717a');
+      colGrad.addColorStop(0.8, '#d4d4d8');
+      colGrad.addColorStop(1, '#18181b');
+      ctx.fillStyle = colGrad;
+      ctx.fillRect(centerX - 26, 352, 52, 42);
+
+      // Walnut wood block base
+      const baseW = 520;
+      const baseH = 50;
+      const baseX = centerX - baseW * 0.5;
+      const baseY = 390;
+      const woodGrad = ctx.createLinearGradient(baseX, baseY, baseX + baseW, baseY + baseH);
+      woodGrad.addColorStop(0, '#4a2c18');
+      woodGrad.addColorStop(0.3, '#6b3e23');
+      woodGrad.addColorStop(0.5, '#59321b');
+      woodGrad.addColorStop(0.75, '#734226');
+      woodGrad.addColorStop(1, '#3d2212');
+      ctx.beginPath();
+      ctx.roundRect(baseX, baseY, baseW, baseH, [8, 8, 6, 6]);
+      ctx.fillStyle = woodGrad;
+      ctx.fill();
+      ctx.strokeStyle = '#291509';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Subtle wood grain lines
+      ctx.strokeStyle = 'rgba(25, 10, 4, 0.32)';
+      ctx.lineWidth = 1;
+      for (let g = 1; g <= 5; g++) {
+        ctx.beginPath();
+        ctx.moveTo(baseX + 10, baseY + g * 8);
+        ctx.bezierCurveTo(centerX - 100, baseY + g * 8 + 3, centerX + 100, baseY + g * 8 - 3, baseX + baseW - 10, baseY + g * 8);
+        ctx.stroke();
+      }
+
+      // Engraved "mooas" logo on walnut base
+      ctx.fillStyle = '#241207';
+      ctx.font = '900 18px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.letterSpacing = '2px';
+      ctx.fillText('mooas', centerX, baseY + 32);
+      ctx.letterSpacing = '0px';
+      ctx.restore();
+
+      // 2. Internal Horizontal Drive Axle & Gear Teeth Between Drums
+      const axleY = drumY + drumH * 0.5;
+      ctx.save();
+      ctx.fillStyle = '#18181b';
+      ctx.fillRect(hourX - 14, axleY - 22, minX + minW - hourX + 48, 44);
+      // Left outer gear teeth
+      ctx.fillStyle = '#27272a';
+      for (let k = -4; k <= 4; k++) {
+        ctx.fillRect(hourX - 10, axleY + k * 6 - 2, 10, 3);
+      }
+      // Right rotary adjustment knob (between Minute & Second drums + outer right edge)
+      const knobX = secX + secW;
+      ctx.fillStyle = '#1f1f23';
+      ctx.strokeStyle = '#3f3f46';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(knobX - 2, axleY - 26, 26, 52, 5);
+      ctx.fill();
+      ctx.stroke();
+      for (let k = -5; k <= 5; k++) {
+        ctx.fillStyle = k % 2 === 0 ? '#52525b' : '#09090b';
+        ctx.fillRect(knobX + 2, axleY + k * 4.2 - 1, 20, 2.2);
+      }
+      ctx.restore();
+
+      // 3. Render HOURS Drum (Left) & MINUTES Drum (Center-Right) & SECONDS Drum (Right)
+      drawMechanicalFlapDrum(hourX, drumY, hourW, drumH, displayH, 'mooas_h', {
+        fontSize: 250,
+        badgeText: cfg.clock24h ? '24H' : amPm,
+        badgeSize: 30,
+        badgeY: 72,
+        textOffsetX: cfg.clock24h ? 0 : 20,
+        twoDigits: displayH.length > 1
+      });
+
+      drawMechanicalFlapDrum(minX, drumY, minW, drumH, displayM, 'mooas_m', {
+        fontSize: 250,
+        twoDigits: true
+      });
+
+      drawMechanicalFlapDrum(secX, drumY + 38, secW, drumH - 38, displayS, 'mooas_s', {
+        fontSize: 165,
+        badgeText: 'SEC',
+        badgeSize: 16,
+        badgeY: 42,
+        twoDigits: true,
+        subLabel: `${dateStr}  ·  CPU ${Math.round(telem.cpuTemp)}°C  GPU ${Math.round(telem.gpuTemp)}°C`,
+        subLabelColor: cfg.accentColor || '#00f2fe'
+      });
+
+      // 4. Central Matte-Black Mechanical T-Bridge Frame (Overlapping inner drum edges, exact match to photo)
+      ctx.save();
+      const pillarW = 92;
+      const pillarX = centerX - pillarW * 0.5;
+      const pillarY = 18;
+      const pillarH = 344;
+
+      // Top horizontal T-Bar spanning across inner corners of Hours and Minutes drums
+      const armW = 310;
+      const armX = centerX - armW * 0.5;
+      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = '#18181b';
+      ctx.strokeStyle = '#3f3f46';
+      ctx.lineWidth = 1.5;
+
+      // Top T-Bridge bracket
+      ctx.beginPath();
+      ctx.roundRect(armX, pillarY, armW, 34, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Left & Right downward bracket tabs clamping onto the drums with hex screws
+      [armX + 12, armX + armW - 40].forEach(tabX => {
+        ctx.fillStyle = '#141417';
+        ctx.beginPath();
+        ctx.roundRect(tabX, pillarY + 24, 28, 52, 5);
+        ctx.fill();
+        ctx.stroke();
+        // Hex bolt head
+        ctx.fillStyle = '#09090b';
+        ctx.beginPath();
+        ctx.arc(tabX + 14, pillarY + 50, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#52525b';
+        ctx.stroke();
+      });
+
+      // 4 top screws on T-bridge crown
+      [-24, -10, 10, 24].forEach(dx => {
+        ctx.fillStyle = '#27272a';
+        ctx.fillRect(centerX + dx - 4, pillarY - 4, 8, 4);
+      });
+
+      // Central vertical rectangular pillar
+      const pilGrad = ctx.createLinearGradient(pillarX, pillarY, pillarX + pillarW, pillarY);
+      pilGrad.addColorStop(0, '#232329');
+      pilGrad.addColorStop(0.5, '#16161a');
+      pilGrad.addColorStop(1, '#0f0f12');
+      ctx.fillStyle = pilGrad;
+      ctx.beginPath();
+      ctx.roundRect(pillarX, pillarY + 6, pillarW, pillarH, 6);
+      ctx.fill();
+      ctx.strokeStyle = '#3f3f46';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ============================================================================
+    // CLOCK THEME 2: 🔢 3-DRUM WIDESCREEN SPLIT-FLAP STUDIO CLOCK & TELEMETRY
+    // ============================================================================
+    function drawFlipClock(dt, bass) {
+      ctx.fillStyle = '#070a12';
+      ctx.fillRect(0, 0, W, H);
+
+      const now = new Date();
+      const rawH = now.getHours();
+      const hh = cfg.clock24h ? String(rawH).padStart(2, '0') : String(rawH % 12 || 12).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      const amPm = rawH >= 12 ? 'PM' : 'AM';
+      const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+      const accent = cfg.accentColor || '#00f2fe';
+
+      const cards = [
+        { label: 'HOURS', val: hh, x: 32, key: 'flip3_h', badge: cfg.clock24h ? '24H' : amPm },
+        { label: 'MINUTES', val: mm, x: 438, key: 'flip3_m', badge: '' },
+        { label: 'SECONDS', val: ss, x: 844, key: 'flip3_s', badge: '' }
+      ];
+
+      cards.forEach(c => {
+        drawMechanicalFlapDrum(c.x, 36, 382, 390, c.val, c.key, {
+          fontSize: 210,
+          badgeText: c.badge,
+          badgeSize: 22,
+          badgeY: 54,
+          subLabel: c.label,
+          subLabelColor: accent,
+          glowColor: accent,
+          borderColor: 'rgba(0, 242, 254, 0.25)',
+          twoDigits: true
+        });
+      });
+
+      // Right Side Date & System Telemetry Panel (x: 1252, w: 636, h: 390)
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(1252, 36, 636, 390, 24);
+      ctx.fillStyle = '#111827';
+      ctx.fill();
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.clip();
+
+      ctx.fillStyle = accent;
+      ctx.font = '800 20px Segoe UI';
+      ctx.fillText(dateStr, 1288, 88);
+
+      const gauges = [
+        { name: 'CPU TEMP & LOAD', val: `${Math.round(telem.cpuTemp)}°C  ·  ${Math.round(telem.cpuUsage)}%`, pct: telem.cpuUsage },
+        { name: 'GPU TEMP & LOAD', val: `${Math.round(telem.gpuTemp)}°C  ·  ${Math.round(telem.gpuUsage)}%`, pct: telem.gpuUsage },
+        { name: 'SYSTEM MEMORY', val: `${Math.round(telem.ramUsage)}%  (${Number(telem.ramUsedGb || 12).toFixed(1)} GB)`, pct: telem.ramUsage }
+      ];
+      gauges.forEach((g, idx) => {
+        const gy = 148 + idx * 88;
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '700 14px Segoe UI';
+        ctx.fillText(g.name, 1288, gy);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '800 20px Consolas, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(g.val, 1852, gy);
+        ctx.textAlign = 'left';
+
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.beginPath();
+        ctx.roundRect(1288, gy + 14, 564, 14, 7);
+        ctx.fill();
+
+        ctx.fillStyle = accent;
+        ctx.beginPath();
+        ctx.roundRect(1288, gy + 14, Math.max(14, (Math.min(100, g.pct || 10) / 100) * 564), 14, 7);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    // ============================================================================
+    // CLOCK THEME 3: 🔥 VINTAGE IN-18 NIXIE TUBE CLOCK (CENTERED ACROSS 1920x462)
+    // ============================================================================
+    function drawNixieClock(dt, bass) {
+      ctx.fillStyle = '#070403';
+      ctx.fillRect(0, 0, W, H);
+
+      const now = new Date();
+      const rawH = now.getHours();
+      const hh = cfg.clock24h ? String(rawH).padStart(2, '0') : String(rawH % 12 || 12).padStart(2, '0');
+      const timeChars = (
+        hh + ':' +
+        String(now.getMinutes()).padStart(2, '0') + ':' +
+        String(now.getSeconds()).padStart(2, '0')
+      ).split('');
+
+      const tw = 190;
+      const stepX = 224;
+      const totalSpan = (timeChars.length - 1) * stepX + tw;
+      const startX = (W - totalSpan) / 2;
+
+      timeChars.forEach((ch, idx) => {
+        const tx = startX + idx * stepX;
+        const ty = 34;
+        const th = 374;
+
+        ctx.save();
+        const glass = ctx.createLinearGradient(tx, ty, tx + tw, ty);
+        glass.addColorStop(0, 'rgba(255, 140, 40, 0.11)');
+        glass.addColorStop(0.5, 'rgba(255, 100, 10, 0.03)');
+        glass.addColorStop(1, 'rgba(255, 140, 40, 0.13)');
+        ctx.fillStyle = glass;
+        ctx.strokeStyle = 'rgba(255, 150, 50, 0.42)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(tx, ty, tw, th, [85, 85, 18, 18]);
+        ctx.fill();
+        ctx.stroke();
+
+        // Brass cathode socket base
+        const brass = ctx.createLinearGradient(tx, ty + th - 28, tx + tw, ty + th);
+        brass.addColorStop(0, '#78350f');
+        brass.addColorStop(0.5, '#d97706');
+        brass.addColorStop(1, '#451a03');
+        ctx.fillStyle = brass;
+        ctx.fillRect(tx + 12, ty + th - 26, tw - 24, 24);
+
+        // Unlit background cathode digits
+        ctx.fillStyle = 'rgba(120, 60, 20, 0.16)';
+        ctx.font = '700 220px Consolas, monospace';
+        ctx.textAlign = 'center';
+        if (ch !== ':') ctx.fillText('8', tx + tw / 2, ty + 270);
+
+        // Glowing plasma discharge digit
+        ctx.fillStyle = '#ffedd5';
+        ctx.shadowColor = '#ff5500';
+        ctx.shadowBlur = 38 + bass * 25;
+        ctx.fillText(ch, tx + tw / 2, ty + 270);
+        ctx.strokeStyle = '#ff6a00';
+        ctx.lineWidth = 3;
+        ctx.strokeText(ch, tx + tw / 2, ty + 270);
+        ctx.restore();
+      });
+
+      // Bottom Steampunk Telemetry Bar
+      ctx.fillStyle = '#fb923c';
+      ctx.font = '800 15px Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        `IN-18 VACUUM CATHODE CHRONOMETER   //   ${now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}   //   CPU ${Math.round(telem.cpuTemp)}°C   GPU ${Math.round(telem.gpuTemp)}°C`,
+        W / 2,
+        442
+      );
+    }
+
+    // ============================================================================
+    // CLOCK THEME 4: ⌚ LUXURY SWISS TRIPLE CHRONOGRAPH (ANALOG MASTER + TELEMETRY)
+    // ============================================================================
+    function drawSwissChrono(dt, bass) {
+      const bg = ctx.createLinearGradient(0, 0, W, H);
+      bg.addColorStop(0, '#07090e');
+      bg.addColorStop(0.5, '#0f1420');
+      bg.addColorStop(1, '#07090e');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      const accent = cfg.accentColor || '#00f2fe';
+      const gold = '#f59e0b';
+      const now = new Date();
+      const ms = now.getMilliseconds();
+      const sec = now.getSeconds() + ms / 1000;
+      const min = now.getMinutes() + sec / 60;
+      const hr = (now.getHours() % 12) + min / 60;
+
+      // Helper to draw a luxury machined bezel & dial
+      function drawDialBase(cx, cy, r, title, subTitle) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.85)';
+        ctx.shadowBlur = 30;
+        // Outer brushed titanium bezel
+        const bezelGrad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+        bezelGrad.addColorStop(0, '#475569');
+        bezelGrad.addColorStop(0.5, '#1e293b');
+        bezelGrad.addColorStop(1, '#0f172a');
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 14, 0, Math.PI * 2);
+        ctx.fillStyle = bezelGrad;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Sunray dial face
+        const faceGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, r);
+        faceGrad.addColorStop(0, '#131c2e');
+        faceGrad.addColorStop(0.75, '#090d16');
+        faceGrad.addColorStop(1, '#05070c');
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = faceGrad;
+        ctx.fill();
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // 60 tick marks
+        for (let i = 0; i < 60; i++) {
+          const ang = (i / 60) * Math.PI * 2 - Math.PI / 2;
+          const isMajor = i % 5 === 0;
+          const rIn = isMajor ? r - 20 : r - 10;
+          const rOut = r - 4;
+          ctx.strokeStyle = isMajor ? '#f8fafc' : 'rgba(148,163,184,0.45)';
+          ctx.lineWidth = isMajor ? 3 : 1.2;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(ang) * rIn, cy + Math.sin(ang) * rIn);
+          ctx.lineTo(cx + Math.cos(ang) * rOut, cy + Math.sin(ang) * rOut);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '800 13px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.fillText(title, cx, cy - r * 0.42);
+        ctx.fillStyle = accent;
+        ctx.font = '700 11px Consolas, monospace';
+        ctx.fillText(subTitle, cx, cy - r * 0.29);
+        ctx.restore();
+      }
+
+      // 1. LEFT CHRONOGRAPH: CPU TELEMETRY (x: 340, y: 231, r: 185)
+      const leftX = 340, centerY = 231, sideR = 182;
+      drawDialBase(leftX, centerY, sideR, 'CPU CHRONOGRAPH', `${Math.round(telem.cpuClock || 4800)} MHz`);
+      ctx.save();
+      const cpuTempAng = (-Math.PI * 0.75) + (Math.min(100, telem.cpuTemp || 45) / 100) * (Math.PI * 1.5);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(leftX, centerY, sideR - 32, -Math.PI * 0.75, cpuTempAng);
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 46px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${Math.round(telem.cpuTemp || 45)}°C`, leftX, centerY + 18);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '700 15px Consolas, monospace';
+      ctx.fillText(`LOAD ${Math.round(telem.cpuUsage || 15)}%  ·  ${Math.round(telem.cpuPower || 45)}W`, leftX, centerY + 58);
+      // Sweeping CPU needle
+      const cpuNeedleAng = (-Math.PI * 0.75) + (Math.min(100, telem.cpuUsage || 15) / 100) * (Math.PI * 1.5);
+      ctx.strokeStyle = gold;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(leftX, centerY);
+      ctx.lineTo(leftX + Math.cos(cpuNeedleAng) * (sideR - 26), centerY + Math.sin(cpuNeedleAng) * (sideR - 26));
+      ctx.stroke();
+      ctx.restore();
+
+      // 2. CENTER MASTER SWISS MECHANICAL WATCH (x: 960, y: 231, r: 204)
+      const midX = 960, midR = 202;
+      drawDialBase(midX, centerY, midR, 'GENÈVE // TL-M10 MASTER', 'AUTOMATIC CHRONOMETER');
+      ctx.save();
+      // Hour numerals (12, 3, 6, 9)
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '900 28px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('12', midX, centerY - midR + 42);
+      ctx.fillText('3', midX + midR - 42, centerY);
+      ctx.fillText('6', midX, centerY + midR - 42);
+      ctx.fillText('9', midX - midR + 42, centerY);
+
+      // Date complication window at 4:30
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = gold;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(midX + 58, centerY + 42, 44, 30, 5);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '800 17px Consolas, monospace';
+      ctx.fillText(String(now.getDate()).padStart(2, '0'), midX + 80, centerY + 58);
+
+      // Digital sub-readout at 6 o'clock
+      const digH = cfg.clock24h ? String(now.getHours()).padStart(2, '0') : String(now.getHours() % 12 || 12).padStart(2, '0');
+      ctx.fillStyle = accent;
+      ctx.font = '800 18px Consolas, monospace';
+      ctx.fillText(`${digH}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`, midX, centerY + 95);
+
+      // Hour hand
+      const hrAng = (hr / 12) * Math.PI * 2 - Math.PI / 2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 8;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(midX - Math.cos(hrAng) * 20, centerY - Math.sin(hrAng) * 20);
+      ctx.lineTo(midX + Math.cos(hrAng) * (midR * 0.54), centerY + Math.sin(hrAng) * (midR * 0.54));
+      ctx.stroke();
+
+      // Minute hand
+      const minAng = (min / 60) * Math.PI * 2 - Math.PI / 2;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 5.5;
+      ctx.beginPath();
+      ctx.moveTo(midX - Math.cos(minAng) * 24, centerY - Math.sin(minAng) * 24);
+      ctx.lineTo(midX + Math.cos(minAng) * (midR * 0.78), centerY + Math.sin(minAng) * (midR * 0.78));
+      ctx.stroke();
+
+      // Sweeping 60fps Second hand
+      const secAng = (sec / 60) * Math.PI * 2 - Math.PI / 2;
+      ctx.strokeStyle = gold;
+      ctx.shadowColor = gold;
+      ctx.shadowBlur = 10;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(midX - Math.cos(secAng) * 34, centerY - Math.sin(secAng) * 34);
+      ctx.lineTo(midX + Math.cos(secAng) * (midR * 0.88), centerY + Math.sin(secAng) * (midR * 0.88));
+      ctx.stroke();
+      ctx.fillStyle = gold;
+      ctx.beginPath();
+      ctx.arc(midX, centerY, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 3. RIGHT CHRONOGRAPH: GPU TELEMETRY (x: 1580, y: 231, r: 185)
+      const rightX = 1580;
+      drawDialBase(rightX, centerY, sideR, 'GPU CHRONOGRAPH', `${Math.round(telem.gpuClock || 1950)} MHz`);
+      ctx.save();
+      const gpuTempAng = (-Math.PI * 0.75) + (Math.min(100, telem.gpuTemp || 50) / 100) * (Math.PI * 1.5);
+      ctx.strokeStyle = '#ec4899';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(rightX, centerY, sideR - 32, -Math.PI * 0.75, gpuTempAng);
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 46px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${Math.round(telem.gpuTemp || 50)}°C`, rightX, centerY + 18);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '700 15px Consolas, monospace';
+      ctx.fillText(`LOAD ${Math.round(telem.gpuUsage || 12)}%  ·  ${Math.round(telem.gpuPower || 60)}W`, rightX, centerY + 58);
+      const gpuNeedleAng = (-Math.PI * 0.75) + (Math.min(100, telem.gpuUsage || 12) / 100) * (Math.PI * 1.5);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(rightX, centerY);
+      ctx.lineTo(rightX + Math.cos(gpuNeedleAng) * (sideR - 26), centerY + Math.sin(gpuNeedleAng) * (sideR - 26));
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ============================================================================
+    // CLOCK THEME 5: 📟 CYBER LED DOT-MATRIX BROADCAST STUDIO CLOCK
+    // ============================================================================
+    function drawLedMatrixClock(dt, bass) {
+      ctx.fillStyle = '#03060c';
+      ctx.fillRect(0, 0, W, H);
+
+      const accent = cfg.accentColor || '#00f2fe';
+      const secCol = cfg.secondaryColor || '#ff007f';
+
+      // Subtle LED dot grid texture across background
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      for (let x = 20; x < W; x += 24) {
+        for (let y = 20; y < H; y += 24) {
+          ctx.fillRect(x, y, 3, 3);
+        }
+      }
+
+      const now = new Date();
+      const rawH = now.getHours();
+      const hh = cfg.clock24h ? String(rawH).padStart(2, '0') : String(rawH % 12 || 12).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      const secNum = now.getSeconds();
+      const amPm = rawH >= 12 ? 'PM' : 'AM';
+      const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+
+      // Top 60-Segment Broadcast LED Seconds Progress Bar
+      const barX = 48, barY = 26, barW = W - 96;
+      const segGap = 6;
+      const segW = (barW - 59 * segGap) / 60;
+      for (let i = 0; i < 60; i++) {
+        const sx = barX + i * (segW + segGap);
+        const lit = i <= secNum;
+        ctx.save();
+        ctx.fillStyle = lit ? (i % 5 === 0 ? secCol : accent) : 'rgba(255,255,255,0.08)';
+        if (lit) {
+          ctx.shadowColor = i % 5 === 0 ? secCol : accent;
+          ctx.shadowBlur = 12;
+        }
+        ctx.beginPath();
+        ctx.roundRect(sx, barY, segW, 18, 4);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Giant Digital Studio Readout
+      ctx.save();
+      ctx.textAlign = 'center';
+      // Dim 88:88:88 ghost segments behind active digits
+      ctx.fillStyle = 'rgba(0, 242, 254, 0.05)';
+      ctx.font = '900 255px Consolas, monospace';
+      ctx.fillText('88:88:88', W * 0.45, 312);
+
+      // Active Glowing Digits
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 28 + bass * 25;
+      ctx.fillText(`${hh}:${mm}:${ss}`, W * 0.45, 312);
+      ctx.restore();
+
+      // Right Broadcast Status Column
+      ctx.save();
+      ctx.fillStyle = secCol;
+      ctx.font = '900 54px Segoe UI';
+      ctx.textAlign = 'left';
+      ctx.fillText(cfg.clock24h ? '24HR' : amPm, 1645, 165);
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '800 22px Consolas, monospace';
+      ctx.fillText(`CPU ${Math.round(telem.cpuTemp)}°C`, 1645, 235);
+      ctx.fillStyle = accent;
+      ctx.fillText(`GPU ${Math.round(telem.gpuTemp)}°C`, 1645, 272);
+      ctx.fillStyle = '#10b981';
+      ctx.fillText(`RAM ${Math.round(telem.ramUsage)}%`, 1645, 309);
+      ctx.restore();
+
+      // Bottom Full Calendar Ribbon
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.strokeStyle = 'rgba(0, 242, 254, 0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(48, 376, W - 96, 58, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = accent;
+      ctx.font = '800 22px Segoe UI';
+      ctx.textAlign = 'left';
+      ctx.fillText(`● ON AIR // STUDIO MASTER CLOCK`, 76, 413);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.textAlign = 'right';
+      ctx.fillText(dateStr, W - 76, 413);
+      ctx.restore();
+    }
+
+    // ============================================================================
+    // CLOCK THEME 6: 🔤 MODERN ILLUMINATED WORD & ARCHITECTURAL HYBRID CLOCK
+    // ============================================================================
+    function drawWordClock(dt, bass) {
+      ctx.fillStyle = '#06070a';
+      ctx.fillRect(0, 0, W, H);
+
+      const accent = cfg.accentColor || '#00f2fe';
+      const now = new Date();
+      const rawH = now.getHours();
+      const m = now.getMinutes();
+      const s = now.getSeconds();
+
+      // Word Clock Matrix (11 cols x 10 rows) on Left Half (x: 42, y: 31, w: 940, h: 400)
+      const grid = [
+        'ITLISASTIME',
+        'ACQUARTERDC',
+        'TWENTYFXMPM',
+        'HALFSTENFTO',
+        'PASTERUNINE',
+        'ONESIXTHREE',
+        'FOURFIVETWO',
+        'EIGHTELEVEN',
+        'SEVENTWELVE',
+        'TENSEOCLOCK'
+      ];
+
+      // Determine active word spans [row, startCol, endCol]
+      const active = [[0, 0, 1], [0, 3, 4]]; // "IT", "IS"
+      const mBucket = Math.floor(m / 5) * 5;
+      const isTo = mBucket > 30;
+      const displayHour12 = ((isTo ? rawH + 1 : rawH) % 12) || 12;
+
+      if (mBucket === 0) active.push([9, 5, 10]); // OCLOCK
+      else if (mBucket === 5 || mBucket === 55) active.push([2, 6, 6], [6, 4, 7]); // FIVE
+      else if (mBucket === 10 || mBucket === 50) active.push([3, 5, 7]); // TEN
+      else if (mBucket === 15 || mBucket === 45) active.push([1, 2, 8]); // QUARTER
+      else if (mBucket === 20 || mBucket === 40) active.push([2, 0, 5]); // TWENTY
+      else if (mBucket === 25 || mBucket === 35) active.push([2, 0, 5], [6, 4, 7]); // TWENTY FIVE
+      else if (mBucket === 30) active.push([3, 0, 3]); // HALF
+
+      if (mBucket > 0) {
+        if (isTo) active.push([3, 9, 10]); // TO
+        else active.push([4, 0, 3]); // PAST
+      }
+
+      const hourSpans = {
+        1: [5, 0, 2], 2: [6, 8, 10], 3: [5, 6, 10], 4: [6, 0, 3],
+        5: [6, 4, 7], 6: [5, 3, 5], 7: [8, 0, 4], 8: [7, 0, 4],
+        9: [4, 7, 10], 10: [9, 0, 2], 11: [7, 5, 10], 12: [8, 5, 10]
+      };
+      if (hourSpans[displayHour12]) active.push(hourSpans[displayHour12]);
+
+      function isCellLit(r, c) {
+        for (let [ar, c1, c2] of active) {
+          if (ar === r && c >= c1 && c <= c2) return true;
+        }
+        return false;
+      }
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(38, 28, 960, 406, 20);
+      ctx.fillStyle = '#0d1017';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const startX = 88, startY = 66, stepX = 86, stepY = 38;
+      ctx.font = '800 25px Consolas, Segoe UI';
+      ctx.textAlign = 'center';
+      for (let r = 0; r < grid.length; r++) {
+        for (let c = 0; c < 11; c++) {
+          const ch = grid[r][c];
+          const lit = isCellLit(r, c);
+          const cx = startX + c * stepX;
+          const cy = startY + r * stepY;
+          if (lit) {
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = accent;
+            ctx.shadowBlur = 16;
+          } else {
+            ctx.fillStyle = 'rgba(148, 163, 184, 0.16)';
+            ctx.shadowBlur = 0;
+          }
+          ctx.fillText(ch, cx, cy);
+        }
+      }
+      ctx.restore();
+
+      // Right Architectural Digital & Telemetry Panel (x: 1024, y: 28, w: 858, h: 406)
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(1024, 28, 858, 406, 20);
+      ctx.fillStyle = '#0d1017';
+      ctx.fill();
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const dispH = cfg.clock24h ? String(rawH).padStart(2, '0') : String(rawH % 12 || 12).padStart(2, '0');
+      const dispM = String(m).padStart(2, '0');
+      const dispS = String(s).padStart(2, '0');
+
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 22;
+      ctx.font = '900 165px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${dispH}:${dispM}`, 1385, 225);
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = accent;
+      ctx.font = '800 62px Consolas, monospace';
+      ctx.fillText(`:${dispS}`, 1745, 215);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '800 18px Segoe UI';
+      ctx.fillText(
+        now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+        1453,
+        295
+      );
+
+      // Seconds Progress Bar & Telemetry
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.beginPath();
+      ctx.roundRect(1074, 330, 758, 14, 7);
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.roundRect(1074, 330, Math.max(14, ((s + now.getMilliseconds() / 1000) / 60) * 758), 14, 7);
+      ctx.fill();
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '700 16px Consolas, monospace';
+      ctx.fillText(
+        `CPU ${Math.round(telem.cpuTemp)}°C (${Math.round(telem.cpuUsage)}%)   ·   GPU ${Math.round(telem.gpuTemp)}°C (${Math.round(telem.gpuUsage)}%)   ·   RAM ${Math.round(telem.ramUsage)}%`,
+        1453,
+        392
+      );
+      ctx.restore();
+    }
+
+    // ============================================================================
+    // BUILT-IN THEME: 🎚️ DUAL ANALOG STUDIO VU METERS
+    // ============================================================================
+    function drawVuMeter(dt, bass) {
+      ctx.fillStyle = '#090706';
+      ctx.fillRect(0, 0, W, H);
+
+      let leftLvl = 0, rightLvl = 0;
+      if (telem.spectrum && telem.spectrum.length >= 64) {
+        for (let i = 0; i < 32; i++) leftLvl += telem.spectrum[i];
+        for (let i = 32; i < 64; i++) rightLvl += telem.spectrum[i];
+        leftLvl = Math.min(1, (leftLvl / 12) * 1.4);
+        rightLvl = Math.min(1, (rightLvl / 12) * 1.4);
+      }
+      if (leftLvl < 0.05) leftLvl = 0.08 + Math.sin(t * 2.1) * 0.03;
+      if (rightLvl < 0.05) rightLvl = 0.08 + Math.cos(t * 2.4) * 0.03;
+
+      const meters = [
+        { title: 'LEFT CHANNEL // MASTER VU', val: leftLvl, x: 45 },
+        { title: 'RIGHT CHANNEL // MASTER VU', val: rightLvl, x: 985 }
+      ];
+
+      meters.forEach(m => {
+        ctx.save();
+        const mw = 890;
+        const mh = 402;
+        const my = 30;
+
+        ctx.beginPath();
+        ctx.roundRect(m.x, my, mw, mh, 24);
+        const face = ctx.createRadialGradient(m.x + mw / 2, my + mh, 40, m.x + mw / 2, my + mh / 2, mw * 0.65);
+        face.addColorStop(0, '#fef3c7');
+        face.addColorStop(0.65, '#f59e0b');
+        face.addColorStop(1, '#78350f');
+        ctx.fillStyle = face;
+        ctx.fill();
+        ctx.strokeStyle = '#451a03';
+        ctx.lineWidth = 8;
+        ctx.stroke();
+        ctx.clip();
+
+        const pivotX = m.x + mw / 2;
+        const pivotY = my + mh - 24;
+        const radius = 305;
+
+        ctx.strokeStyle = '#1c1917';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(pivotX, pivotY, radius, Math.PI * 1.18, Math.PI * 1.68);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#dc2626';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.arc(pivotX, pivotY, radius, Math.PI * 1.68, Math.PI * 1.82);
+        ctx.stroke();
+
+        ctx.fillStyle = '#292524';
+        ctx.font = '900 30px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.fillText('VU', pivotX, my + 190);
+        ctx.font = '700 14px Segoe UI';
+        ctx.fillText(m.title, pivotX, my + 218);
+
+        const angle = Math.PI * (1.18 + m.val * 0.64);
+        const nx = pivotX + Math.cos(angle) * (radius + 20);
+        const ny = pivotY + Math.sin(angle) * (radius + 20);
+        ctx.strokeStyle = '#1c1917';
+        ctx.lineWidth = 4.5;
+        ctx.beginPath();
+        ctx.moveTo(pivotX, pivotY);
+        ctx.lineTo(nx, ny);
+        ctx.stroke();
+
+        ctx.fillStyle = '#1c1917';
+        ctx.beginPath();
+        ctx.arc(pivotX, pivotY, 24, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+
+    function drawSynthwave(dt, bass) {
+      const c1 = cfg.accentColor || '#00f2fe';
+      const c2 = cfg.secondaryColor || '#ff007f';
+
+      const sky = ctx.createLinearGradient(0, 0, 0, H * 0.62);
+      sky.addColorStop(0, '#050214');
+      sky.addColorStop(0.55, '#190636');
+      sky.addColorStop(1, c2);
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, H * 0.62);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      for (let i = 0; i < 90; i++) {
+        const sx = (i * 197 + t * 4) % W;
+        const sy = (i * 73) % (H * 0.42);
+        const r = (i % 3 === 0) ? 1.8 : 1.0;
+        ctx.fillRect(sx, sy, r, r);
+      }
+
+      const sunY = H * 0.43;
+      const sunR = 115 + bass * 18;
+      ctx.save();
+      const sunGrad = ctx.createLinearGradient(0, sunY - sunR, 0, sunY + sunR);
+      sunGrad.addColorStop(0, '#ffea00');
+      sunGrad.addColorStop(0.5, '#ff5e00');
+      sunGrad.addColorStop(1, c2);
+      ctx.fillStyle = sunGrad;
+      ctx.shadowColor = c2;
+      ctx.shadowBlur = 45 + bass * 30;
+      ctx.beginPath();
+      ctx.arc(W / 2, sunY, sunR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = '#190636';
+      for (let i = 0; i < 7; i++) {
+        const ly = sunY + 10 + i * 14;
+        const lh = 2 + i * 1.4;
+        ctx.fillRect(W / 2 - sunR - 10, ly, sunR * 2 + 20, lh);
+      }
+
+      const horizY = H * 0.60;
+      ctx.fillStyle = '#090318';
+      ctx.beginPath();
+      ctx.moveTo(0, horizY);
+      for (let x = 0; x <= W; x += 40) {
+        const distCenter = Math.abs(x - W / 2) / (W / 2);
+        const peak = Math.sin(x * 0.008) * 34 + Math.cos(x * 0.021) * 18;
+        const hMask = Math.max(0.15, distCenter);
+        ctx.lineTo(x, horizY - Math.abs(peak) * hMask);
+      }
+      ctx.lineTo(W, horizY);
+      ctx.closePath();
+      ctx.fill();
+
+      const ground = ctx.createLinearGradient(0, horizY, 0, H);
+      ground.addColorStop(0, '#120428');
+      ground.addColorStop(1, '#03010a');
+      ctx.fillStyle = ground;
+      ctx.fillRect(0, horizY, W, H - horizY);
+
+      ctx.save();
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = 1.6;
+      ctx.shadowColor = c1;
+      ctx.shadowBlur = 10;
+
+      const vpX = W / 2;
+      const vpY = horizY;
+      for (let i = -24; i <= 24; i++) {
+        ctx.beginPath();
+        ctx.moveTo(vpX + i * 18, vpY);
+        ctx.lineTo(vpX + i * 140, H);
+        ctx.stroke();
+      }
+
+      const speedOffset = (t * 2.5) % 1;
+      for (let j = 0; j < 10; j++) {
+        const p = (j + speedOffset) / 10;
+        const y = vpY + Math.pow(p, 2.1) * (H - vpY);
+        ctx.globalAlpha = Math.min(1, p * 1.3);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = c1;
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.moveTo(0, horizY);
+      ctx.lineTo(W, horizY);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawMatrix(dt, bass) {
+      ctx.fillStyle = 'rgba(2, 6, 14, 0.18)';
+      ctx.fillRect(0, 0, W, H);
+
+      const c1 = cfg.accentColor || '#00ff88';
+      ctx.font = 'bold 16px Consolas, monospace';
+
+      for (let i = 0; i < matrixCols; i++) {
+        const ch = matrixChars[Math.floor(Math.random() * matrixChars.length)];
+        const x = i * 18;
+        const y = matrixDrops[i] * 18;
+
+        ctx.fillStyle = '#e2fbe8';
+        ctx.fillText(ch, x, y);
+
+        ctx.fillStyle = c1;
+        ctx.shadowColor = c1;
+        ctx.shadowBlur = 8;
+        ctx.fillText(ch, x, y - 18);
+        ctx.shadowBlur = 0;
+
+        if (y > H && Math.random() > 0.975) {
+          matrixDrops[i] = 0;
+        }
+        matrixDrops[i] += (0.55 + (i % 5) * 0.12) * (cfg.animSpeed || 1) * (1 + bass * 0.6);
+      }
+    }
+
+    function drawAurora(dt, bass) {
+      ctx.fillStyle = '#030712';
+      ctx.fillRect(0, 0, W, H);
+
+      const c1 = hexToRgb(cfg.accentColor || '#00f2fe');
+      const c2 = hexToRgb(cfg.secondaryColor || '#a855f7');
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+
+      for (let layer = 0; layer < 5; layer++) {
+        const isAlt = layer % 2 === 1;
+        const col = isAlt ? c2 : c1;
+        ctx.beginPath();
+        const baseY = H * (0.28 + layer * 0.12);
+        ctx.moveTo(0, H);
+        for (let x = 0; x <= W; x += 24) {
+          const wave1 = Math.sin(x * 0.0025 + t * (0.8 + layer * 0.2) + layer) * (55 + bass * 35);
+          const wave2 = Math.cos(x * 0.0055 - t * 0.6 + layer * 2) * 32;
+          ctx.lineTo(x, baseY + wave1 + wave2);
+        }
+        ctx.lineTo(W, H);
+        ctx.closePath();
+
+        const grad = ctx.createLinearGradient(0, baseY - 90, 0, H);
+        grad.addColorStop(0, `rgba(${col.r}, ${col.g}, ${col.b}, 0.42)`);
+        grad.addColorStop(0.6, `rgba(${col.r}, ${col.g}, ${col.b}, 0.08)`);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.strokeStyle = `rgba(${col.r}, ${col.g}, ${col.b}, 0.75)`;
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawCyberHud(dt, bass) {
+      ctx.fillStyle = '#040812';
+      ctx.fillRect(0, 0, W, H);
+
+      const c1 = cfg.accentColor || '#00f2fe';
+      const c2 = cfg.secondaryColor || '#f43f5e';
+
+      ctx.strokeStyle = 'rgba(0, 242, 254, 0.07)';
+      ctx.lineWidth = 1;
+      const step = 48;
+      for (let x = 0; x < W; x += step) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+      for (let y = 0; y < H; y += step) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+
+      const centers = [W * 0.22, W * 0.5, W * 0.78];
+      centers.forEach((cx, idx) => {
+        const cy = H / 2;
+        const rBase = idx === 1 ? 155 : 120;
+        const col = idx === 1 ? c1 : c2;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(t * (idx % 2 === 0 ? 0.5 : -0.6));
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 3;
+        ctx.shadowColor = col;
+        ctx.shadowBlur = 12;
+        for (let a = 0; a < 6; a++) {
+          ctx.beginPath();
+          ctx.arc(0, 0, rBase + bass * 14, a * Math.PI / 3, a * Math.PI / 3 + 0.65);
+          ctx.stroke();
+        }
+
+        ctx.rotate(-t * 1.2);
+        ctx.lineWidth = 2;
+        ctx.setLineDash([12, 8]);
+        ctx.beginPath();
+        ctx.arc(0, 0, rBase * 0.72, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      });
+
+      const scanX = (t * 260) % W;
+      const scanGrad = ctx.createLinearGradient(scanX - 80, 0, scanX, 0);
+      scanGrad.addColorStop(0, 'rgba(0,242,254,0)');
+      scanGrad.addColorStop(1, 'rgba(0,242,254,0.28)');
+      ctx.fillStyle = scanGrad;
+      ctx.fillRect(scanX - 80, 0, 80, H);
+    }
+
+    function drawStarfield(dt, bass) {
+      ctx.fillStyle = 'rgba(3, 6, 16, 0.38)';
+      ctx.fillRect(0, 0, W, H);
+
+      const cx = W / 2;
+      const cy = H / 2;
+      const speed = (10 + bass * 28) * (cfg.animSpeed || 1);
+      const c1 = cfg.accentColor || '#00f2fe';
+
+      for (let s of stars) {
+        const prevZ = s.z;
+        s.z -= speed;
+        if (s.z <= 1) {
+          s.x = (Math.random() - 0.5) * W * 2;
+          s.y = (Math.random() - 0.5) * H * 2;
+          s.z = W;
+          continue;
+        }
+        const sx = cx + (s.x / s.z) * 520;
+        const sy = cy + (s.y / s.z) * 520;
+        const px = cx + (s.x / prevZ) * 520;
+        const py = cy + (s.y / prevZ) * 520;
+
+        const alpha = Math.min(1, (1 - s.z / W) * 1.4);
+        ctx.strokeStyle = s.z < W * 0.35 ? c1 : `rgba(255,255,255,${alpha})`;
+        ctx.lineWidth = Math.max(1, (1 - s.z / W) * 3.5);
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(sx, sy);
+        ctx.stroke();
+      }
+    }
+
+    function drawConstellation(dt, bass) {
+      ctx.fillStyle = '#050814';
+      ctx.fillRect(0, 0, W, H);
+
+      const c1 = hexToRgb(cfg.accentColor || '#00f2fe');
+      const mult = (cfg.animSpeed || 1) * (1 + bass * 0.8);
+
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        a.x += a.vx * mult;
+        a.y += a.vy * mult;
+        if (a.x < 0 || a.x > W) a.vx *= -1;
+        if (a.y < 0 || a.y > H) a.vy *= -1;
+
+        for (let j = i + 1; j < nodes.length; j++) {
+          const b = nodes[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < 24000) {
+            const alpha = (1 - d2 / 24000) * 0.55;
+            ctx.strokeStyle = `rgba(${c1.r}, ${c1.g}, ${c1.b}, ${alpha})`;
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+
+        ctx.fillStyle = `rgb(${c1.r}, ${c1.g}, ${c1.b})`;
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.r + bass * 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawNeonRain(dt, bass) {
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, '#060919');
+      bg.addColorStop(1, '#140b29');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      const c1 = hexToRgb(cfg.accentColor || '#00f2fe');
+      const c2 = hexToRgb(cfg.secondaryColor || '#ff007f');
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let b of bokehs) {
+        b.x = (b.x + b.dx + W) % W;
+        b.y = (b.y + b.dy + H) % H;
+        const col = b.hue ? c1 : c2;
+        const g = ctx.createRadialGradient(b.x, b.y, 2, b.x, b.y, b.r + bass * 20);
+        g.addColorStop(0, `rgba(${col.r}, ${col.g}, ${col.b}, 0.26)`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r + bass * 20, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      ctx.strokeStyle = 'rgba(200, 230, 255, 0.45)';
+      ctx.lineWidth = 1.4;
+      for (let r of raindrops) {
+        ctx.beginPath();
+        ctx.moveTo(r.x, r.y);
+        ctx.lineTo(r.x - 4, r.y + r.len);
+        ctx.stroke();
+        r.y += r.speed * (cfg.animSpeed || 1);
+        r.x -= 1.2 * (cfg.animSpeed || 1);
+        if (r.y > H) {
+          r.y = -r.len;
+          r.x = Math.random() * W;
+        }
+        if (r.x < 0) r.x = W;
+      }
+    }
+
+    function drawMetaballs(dt, bass) {
+      ctx.fillStyle = '#04060e';
+      ctx.fillRect(0, 0, W, H);
+
+      const c1 = hexToRgb(cfg.accentColor || '#00f2fe');
+      const c2 = hexToRgb(cfg.secondaryColor || '#ff007f');
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let b of blobs) {
+        b.x += b.vx * (cfg.animSpeed || 1);
+        b.y += b.vy * (cfg.animSpeed || 1);
+        if (b.x < -100 || b.x > W + 100) b.vx *= -1;
+        if (b.y < -100 || b.y > H + 100) b.vy *= -1;
+
+        const col = b.alt ? c1 : c2;
+        const rad = b.r * (1 + bass * 0.35);
+        const g = ctx.createRadialGradient(b.x, b.y, rad * 0.1, b.x, b.y, rad);
+        g.addColorStop(0, `rgba(${col.r}, ${col.g}, ${col.b}, 0.65)`);
+        g.addColorStop(0.5, `rgba(${col.r}, ${col.g}, ${col.b}, 0.2)`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, rad, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawF1Telemetry(dt, bass) {
+      ctx.fillStyle = '#07090e';
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 2;
+      for (let x = -H; x < W; x += 16) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + H, H);
+        ctx.stroke();
+      }
+
+      const rpmRatio = Math.min(1, ((telem.cpuUsage || 15) * 0.6 + (telem.gpuUsage || 10) * 0.4 + bass * 40) / 85);
+      const totalLights = 15;
+      const activeLights = Math.round(rpmRatio * totalLights);
+      const startX = 360;
+      const spanW = W - 720;
+      const stepX = spanW / (totalLights - 1);
+
+      for (let i = 0; i < totalLights; i++) {
+        const lx = startX + i * stepX;
+        const ly = 42;
+        let col = '#1e293b';
+        if (i < activeLights) {
+          if (i < 5) col = '#22c55e';
+          else if (i < 10) col = '#ef4444';
+          else col = '#3b82f6';
+        }
+        ctx.save();
+        ctx.fillStyle = col;
+        if (i < activeLights) {
+          ctx.shadowColor = col;
+          ctx.shadowBlur = 18;
+        }
+        ctx.beginPath();
+        ctx.roundRect(lx - 26, ly - 12, 52, 24, 6);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      ctx.save();
+      ctx.strokeStyle = cfg.accentColor || '#00f2fe';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - 190, 95, 380, 280, 22);
+      ctx.stroke();
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 14px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText('CPU / GPU TELEMETRY', W / 2, 128);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 92px Segoe UI';
+      ctx.fillText(`${Math.round(telem.cpuTemp || 45)}°`, W / 2 - 85, 235);
+      ctx.fillStyle = cfg.accentColor || '#00f2fe';
+      ctx.fillText(`${Math.round(telem.gpuTemp || 48)}°`, W / 2 + 95, 235);
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = 'bold 18px Consolas, monospace';
+      ctx.fillText(`CPU ${Math.round(telem.cpuClock || 4800)} MHz   |   GPU ${Math.round(telem.gpuPower || 55)} W`, W / 2, 330);
+      ctx.restore();
+    }
+
+    let lastTime = performance.now();
+    function animate(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+      t += dt * (cfg.animSpeed || 1);
+
+      if (cfg.screenMode === 'animation') {
+        const bass = getBassBoost();
+        switch (cfg.animPreset) {
+          case 'btc-terminal': drawBtcTerminal(dt, bass); break;
+          case 'psx-stocks': drawPsxStocks(dt, bass); break;
+          case 'us-stocks': drawUsStocks(dt, bass); break;
+          case 'cybermap': drawCyberMap(dt, bass); break;
+          case 'cybercity': drawCyberCity(dt, bass); break;
+          case 'mooas-flip': drawMooasFlipClock(dt, bass); break;
+          case 'flipclock': drawFlipClock(dt, bass); break;
+          case 'nixieclock': drawNixieClock(dt, bass); break;
+          case 'swiss-chrono': drawSwissChrono(dt, bass); break;
+          case 'led-matrix-clock': drawLedMatrixClock(dt, bass); break;
+          case 'word-clock': drawWordClock(dt, bass); break;
+          case 'vumeter': drawVuMeter(dt, bass); break;
+          case 'matrix': drawMatrix(dt, bass); break;
+          case 'aurora': drawAurora(dt, bass); break;
+          case 'cyberhud': drawCyberHud(dt, bass); break;
+          case 'starfield': drawStarfield(dt, bass); break;
+          case 'constellation': drawConstellation(dt, bass); break;
+          case 'neonrain': drawNeonRain(dt, bass); break;
+          case 'metaballs': drawMetaballs(dt, bass); break;
+          case 'f1telemetry': drawF1Telemetry(dt, bass); break;
+          case 'synthwave':
+          default:
+            drawSynthwave(dt, bass);
+            break;
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    window.__TLM10_SCREEN_CONFIG__ = function (newCfg) {
+      if (!newCfg) return;
+      Object.assign(cfg, newCfg);
+      applyMediaState();
+    };
+
+    window.__TLM10_ON_TELEMETRY__ = function (newTelem) {
+      Object.assign(telem, newTelem);
+    };
+
+    window.__TLM10_MARKET_DATA__ = function (newMarket) {
+      if (!newMarket) return;
+      if (newMarket.usdToPkr) marketData.usdToPkr = newMarket.usdToPkr;
+      if (Array.isArray(newMarket.crypto) && newMarket.crypto.length > 0) marketData.crypto = newMarket.crypto;
+      if (Array.isArray(newMarket.btcChart) && newMarket.btcChart.length > 2) marketData.btcChart = newMarket.btcChart;
+      if (newMarket.kse100) marketData.kse100 = Object.assign(marketData.kse100, newMarket.kse100);
+      if (Array.isArray(newMarket.psxStocks) && newMarket.psxStocks.length > 0) marketData.psxStocks = newMarket.psxStocks;
+      if (Array.isArray(newMarket.usStocks) && newMarket.usStocks.length > 0) marketData.usStocks = newMarket.usStocks;
+    };
+
+    applyMediaState();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

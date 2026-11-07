@@ -1,0 +1,1996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>TL-M10 Vision Studio Control Deck</title>
+  <style>
+    :root {
+      --bg: #070b14;
+      --panel: #0f172a;
+      --panel-hover: #1e293b;
+      --border: rgba(255, 255, 255, 0.09);
+      --accent: #00f2fe;
+      --accent2: #4facfe;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --success: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Top Navigation Bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 16px;
+      background: rgba(15, 23, 42, 0.96);
+      border-bottom: 1px solid var(--border);
+      gap: 10px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-badge {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #030712;
+      font-weight: 900;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      letter-spacing: 1px;
+    }
+    .brand-title {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+    }
+    .brand-sub {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: rgba(3, 7, 18, 0.65);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tab-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .tab-btn.active {
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.22), rgba(79, 172, 254, 0.22));
+      color: #fff;
+      border: 1px solid rgba(0, 242, 254, 0.45);
+      box-shadow: 0 4px 14px rgba(0, 242, 254, 0.15);
+    }
+
+    .status-strip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+    }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 99px;
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 10px var(--success);
+    }
+    .dot.warn { background: var(--warn); box-shadow: 0 0 10px var(--warn); }
+
+    /* Main Content Area */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px 18px;
+    }
+    .tab-pane {
+      display: none;
+      animation: fadeIn 0.15s ease;
+    }
+    .tab-pane.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 16px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 11px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Controls */
+    .url-bar-wrap {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .icon-btn, .btn {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 7px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .icon-btn:hover, .btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.24);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #040814;
+      border: none;
+      font-weight: 800;
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 4px 16px rgba(0, 242, 254, 0.35);
+    }
+    .btn-save {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #ffffff;
+      border: 1px solid rgba(16, 185, 129, 0.5);
+      font-weight: 800;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
+    }
+    .btn-save:hover {
+      filter: brightness(1.12);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.45);
+    }
+    .btn-tray {
+      background: rgba(245, 158, 11, 0.16);
+      color: #fcd34d;
+      border: 1px solid rgba(245, 158, 11, 0.45);
+      font-weight: 700;
+    }
+    .btn-tray:hover {
+      background: rgba(245, 158, 11, 0.28);
+    }
+
+    input[type="text"], input[type="url"], input[type="number"], select, textarea {
+      background: rgba(3, 7, 18, 0.75);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 13px;
+      outline: none;
+      width: 100%;
+    }
+    input[type="text"]:focus, input[type="url"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0, 242, 254, 0.15);
+    }
+
+    /* Preset Grid */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+      gap: 9px;
+    }
+    .preset-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.16s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      position: relative;
+    }
+    .preset-card:hover {
+      background: rgba(0, 242, 254, 0.08);
+      border-color: rgba(0, 242, 254, 0.4);
+      transform: translateY(-1px);
+    }
+    .preset-card.active {
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.18), rgba(79, 172, 254, 0.14));
+      border-color: var(--accent);
+      box-shadow: 0 4px 16px rgba(0, 242, 254, 0.22);
+    }
+    .preset-name {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .preset-desc {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Big Market Theme Cards */
+    .market-hero-card {
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(8, 13, 26, 0.95));
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 15px 17px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .market-hero-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+      box-shadow: 0 8px 26px rgba(0, 242, 254, 0.18);
+    }
+    .market-hero-card.active {
+      border-color: var(--accent);
+      background: linear-gradient(145deg, rgba(0, 242, 254, 0.14), rgba(15, 23, 42, 0.95));
+      box-shadow: 0 8px 28px rgba(0, 242, 254, 0.25);
+    }
+
+    /* Sliders & Rows */
+    .control-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .control-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #cbd5e1;
+      min-width: 125px;
+    }
+    .control-val {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 52px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    input[type="color"] {
+      width: 42px;
+      height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .toggle-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .chip input { accent-color: var(--accent); }
+
+    .playlist-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 210px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .playlist-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    .playlist-item.active {
+      border-color: var(--accent);
+      background: rgba(0, 242, 254, 0.1);
+    }
+
+    .sensor-live-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .sensor-mini {
+      background: rgba(3, 7, 18, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .sensor-mini-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.8px;
+    }
+    .sensor-mini-val {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      margin-top: 2px;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 99px; }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-badge">1920 × 462</span>
+      <div>
+        <div class="brand-title">Thermalright TL-M10 Vision Studio</div>
+        <div class="brand-sub">All Classic Themes · Live BTC, PSX & US Stocks · Web Cast · 60 FPS USB Engine</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tabbtn-anim" onclick="switchTab('anim', this)">✨ All Themes & Animations</button>
+      <button class="tab-btn" id="tabbtn-markets" onclick="switchTab('markets', this)">📈 Live BTC, PSX & US Stocks</button>
+      <button class="tab-btn" id="tabbtn-web" onclick="switchTab('web', this)">🌐 YouTube & Websites</button>
+      <button class="tab-btn" id="tabbtn-media" onclick="switchTab('media', this)">📤 Upload Video / GIF / Image</button>
+      <button class="tab-btn" id="tabbtn-hud" onclick="switchTab('hud', this)">📊 PC Stats HUD</button>
+      <button class="tab-btn" id="tabbtn-audio" onclick="switchTab('audio', this)">🎵 Audio & USB Screen</button>
+    </div>
+
+    <div class="status-strip">
+      <label class="chip" style="border-color:rgba(16,185,129,0.45);background:rgba(16,185,129,0.12);color:#ecfdf5;padding:5px 10px" title="Automatically launch TL-M10 Vision Studio when Windows starts">
+        <input type="checkbox" id="start-with-windows" onchange="toggleStartWithWindows(this.checked)" />
+        🚀 Start with Windows
+      </label>
+      <button class="btn btn-save" id="save-all-btn" onclick="saveAllSettingsNow(true)" title="Save all current settings to screen permanently">💾 Save Settings</button>
+      <button class="btn btn-tray" onclick="sendCmd('minimizeToTray')" title="Hide window to system tray while keeping the USB screen running at 60 FPS">📥 Minimize to Tray</button>
+      <button class="btn btn-primary" onclick="triggerUploadMedia()">📤 Upload Media</button>
+      <button class="btn" id="quick-flip-btn" style="border-color:rgba(0,242,254,0.45);color:#00f2fe" onclick="quickToggleFlip180()" title="Flip USB Screen 180°">🔄 180°</button>
+      <div class="status-pill" title="USB LCD Hardware Driver Status">
+        <span id="usb-dot" class="dot"></span>
+        <span id="usb-status-text">USB Ready</span>
+      </div>
+      <div class="status-pill">
+        <span id="fps-text">25 FPS</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- TAB 1: ALL THEMES & ANIMATIONS (CLASSIC 9 + NEW FINANCIAL & STUDIO THEMES) -->
+    <div id="tab-anim" class="tab-pane active">
+      <div class="grid-2">
+        <div>
+          <div class="card" style="border-color:rgba(0,242,254,0.32)">
+            <div class="card-header">
+              <div class="card-title">🌟 Original 9 Classic TL-M10 Themes (With Live CPU/GPU Side-Wings HUD & Audio Bars)</div>
+              <button class="btn btn-save" style="padding:4px 10px;font-size:11.5px" onclick="saveAllSettingsNow(true)">💾 Save Active Theme</button>
+            </div>
+            <div class="preset-grid" id="classic-anim-presets-grid"></div>
+          </div>
+
+          <div class="card" style="border-color:rgba(245,158,11,0.42);background:linear-gradient(145deg,rgba(245,158,11,0.07),rgba(15,23,42,0.85))">
+            <div class="card-header">
+              <div class="card-title" style="color:#fbbf24">🕰️ Clock Themes Collection (6 Custom 1920 × 462 Clock Designs — Split-Flap, Nixie, Swiss & LED)</div>
+              <label class="chip" style="padding:3px 10px;font-size:11px;border-color:rgba(245,158,11,0.4)">
+                <input type="checkbox" id="clock-24h" onchange="updateAnimConfig()" />
+                24-Hour Format (Default: 12H AM/PM)
+              </label>
+            </div>
+            <div class="preset-grid" id="clock-anim-presets-grid"></div>
+          </div>
+
+          <div class="card" style="border-color:rgba(16,185,129,0.32)">
+            <div class="card-header">
+              <div class="card-title" style="color:#10b981">🚀 Live Financial, Radar & Studio Themes (Full 1920 × 462 Dashboards)</div>
+              <button class="btn" style="padding:4px 10px;font-size:11.5px" onclick="switchTab('markets')">⚙️ Customize Stock Tickers</button>
+            </div>
+            <div class="preset-grid" id="new-anim-presets-grid"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🎨 Theme Colors, Speed, HUD & Center Text</div>
+              <button class="btn" style="padding:4px 10px;font-size:11px" onclick="selectHudPreset('side-wings');selectVizPreset('spectrum-bars')">🦅 Restore Classic HUD + Audio Bars</button>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Animation Speed</span>
+              <input type="range" id="anim-speed" min="0.2" max="3.0" step="0.1" value="1.0" oninput="updateAnimConfig()" />
+              <span class="control-val" id="anim-speed-val">1.0x</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Primary Neon Color</span>
+              <input type="color" id="anim-color1" value="#00f2fe" oninput="updateAnimConfig()" />
+              <span class="control-label" style="min-width:auto;margin-left:16px">Secondary Color</span>
+              <input type="color" id="anim-color2" value="#ff007f" oninput="updateAnimConfig()" />
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Center Hero Title</span>
+              <input type="text" id="hero-text" placeholder="Optional big center text (e.g. GAMING RIG / RYZEN)" oninput="updateAnimConfig()" />
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Center Subtitle</span>
+              <input type="text" id="hero-subtext" placeholder="Optional subtitle..." oninput="updateAnimConfig()" />
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Top Pill Badge Text</span>
+              <input type="text" id="banner-text" placeholder="Optional floating pill text on any screen..." oninput="updateHudConfig()" />
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Crypto / Stock Currency</span>
+              <select id="anim-currency" onchange="syncCurrencyChoice(this.value)">
+                <option value="USD" selected>🇺🇸 US Dollar ($ USD) — Default</option>
+                <option value="PKR">🇵🇰 Pakistani Rupee (Rs. PKR)</option>
+                <option value="EUR">🇪🇺 Euro (€ EUR)</option>
+                <option value="GBP">🇬🇧 British Pound (£ GBP)</option>
+                <option value="AED">🇦🇪 UAE Dirham (AED)</option>
+                <option value="SAR">🇸🇦 Saudi Riyal (SAR)</option>
+                <option value="BOTH">🌐 Dual Display ($ USD + Rs. PKR)</option>
+              </select>
+            </div>
+
+            <div class="toggle-row">
+              <label class="chip">
+                <input type="checkbox" id="anim-audio-react" checked onchange="updateAnimConfig()" />
+                React to Desktop Music / Audio Bass
+              </label>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">💻 Custom HTML / CSS / Canvas Sandbox</div>
+              <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" onclick="runCustomHtml()">Run Custom HTML on Screen</button>
+            </div>
+            <textarea id="custom-html-input" rows="2" placeholder="Paste any HTML, CSS, or <script> animation here to render natively at 1920×462..."><div style="width:1920px;height:462px;display:flex;align-items:center;justify-content:center;background:linear-gradient(90deg,#0f0c29,#302b63,#24243e);font-size:58px;font-weight:900;letter-spacing:8px;color:#00f2fe;text-shadow:0 0 30px #00f2fe;">TL-M10 VISION CUSTOM HTML</div></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: LIVE BTC, PSX STOCKS & US STOCKS (3 SEPARATE THEMES) -->
+    <div id="tab-markets" class="tab-pane">
+      <div class="card" style="background:linear-gradient(135deg,rgba(0,242,254,0.08),rgba(15,23,42,0.92));border-color:rgba(0,242,254,0.3)">
+        <div class="card-header">
+          <div class="card-title">📈 3 Separate Live Financial Terminal Themes (Full 1920 × 462 Resolution)</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:#94a3b8">Display Currency:</span>
+            <select id="market-currency" style="width:220px;padding:5px 10px" onchange="syncCurrencyChoice(this.value)">
+              <option value="USD" selected>🇺🇸 US Dollar ($ USD) — Default</option>
+              <option value="PKR">🇵🇰 Pakistani Rupee (Rs. PKR)</option>
+              <option value="EUR">🇪🇺 Euro (€ EUR)</option>
+              <option value="GBP">🇬🇧 British Pound (£ GBP)</option>
+              <option value="AED">🇦🇪 UAE Dirham (AED)</option>
+              <option value="SAR">🇸🇦 Saudi Riyal (SAR)</option>
+              <option value="BOTH">🌐 Dual Display ($ USD + Rs. PKR)</option>
+            </select>
+            <button class="btn" onclick="sendCmd('refreshMarketData')">↻ Refresh Live Prices</button>
+            <button class="btn btn-save" onclick="saveAllSettingsNow(true)">💾 Save Active Theme</button>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="market-hero-card" id="mcard-btc-terminal" onclick="selectAnimPreset('btc-terminal')" style="border-top:3px solid #f7931a">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span style="background:#f7931a;color:#000;font-weight:900;font-size:11px;padding:3px 9px;border-radius:6px">THEME 1 · CRYPTO</span>
+                <span style="font-size:12px;font-weight:800;color:#10b981">LIVE FEED</span>
+              </div>
+              <div style="font-size:17px;font-weight:900;color:#fff">₿ Bitcoin & Crypto Live Terminal</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px">Live BTC & 6-coin board (ETH, SOL, BNB, XRP, DOGE, ADA), 24h High/Low, intraday momentum chart & scrolling ticker in your selected currency (<b>USD $</b> default).</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.35);padding:9px 12px;border-radius:10px;display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-size:12px;color:#f7931a;font-weight:800">BTC LIVE:</span>
+              <span id="deck-btc-price" style="font-size:15px;font-weight:900;color:#fff">$96,240.00 (+3.45%)</span>
+            </div>
+            <button class="btn btn-primary" style="width:100%;background:linear-gradient(135deg,#f7931a,#f59e0b);color:#000">Launch ₿ BTC Live Theme on Screen</button>
+          </div>
+
+          <div class="market-hero-card" id="mcard-psx-stocks" onclick="selectAnimPreset('psx-stocks')" style="border-top:3px solid #10b981">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span style="background:#10b981;color:#000;font-weight:900;font-size:11px;padding:3px 9px;border-radius:6px">THEME 2 · PAKISTAN (Rs.)</span>
+                <span style="font-size:12px;font-weight:800;color:#10b981">PSX DPS LIVE</span>
+              </div>
+              <div style="font-size:17px;font-weight:900;color:#fff">🇵🇰 PSX Pakistan Stock Exchange</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px">Live <b>KSE-100 Index</b> intraday chart + 8-card PSX Blue-Chip grid (SYS, LUCK, OGDC, HUBC, MEBL, ENGRO, PPL, FFC) in <b>Rupees (Rs.)</b> + scrolling PSX tape.</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.35);padding:9px 12px;border-radius:10px;display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-size:12px;color:#10b981;font-weight:800">KSE-100:</span>
+              <span id="deck-psx-price" style="font-size:15px;font-weight:900;color:#fff">114,850.45 (+1.10%)</span>
+            </div>
+            <button class="btn btn-primary" style="width:100%;background:linear-gradient(135deg,#10b981,#059669);color:#000">Launch 🇵🇰 PSX Stocks Theme on Screen</button>
+          </div>
+
+          <div class="market-hero-card" id="mcard-us-stocks" onclick="selectAnimPreset('us-stocks')" style="border-top:3px solid #38bdf8">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span style="background:#38bdf8;color:#000;font-weight:900;font-size:11px;padding:3px 9px;border-radius:6px">THEME 3 · WALL STREET</span>
+                <span style="font-size:12px;font-weight:800;color:#38bdf8">NYSE / NASDAQ</span>
+              </div>
+              <div style="font-size:17px;font-weight:900;color:#fff">🇺🇸 US Stocks & Wall Street Ticker</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px">Featured US stock chart + 8-card Wall Street board (NVDA, AAPL, TSLA, MSFT, AMZN, META, GOOGL, AMD) with prices in USD & <b>Rs.</b> + Wall Street ticker tape.</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.35);padding:9px 12px;border-radius:10px;display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-size:12px;color:#38bdf8;font-weight:800">NVDA / US:</span>
+              <span id="deck-us-price" style="font-size:15px;font-weight:900;color:#fff">$138.60 (+3.16%)</span>
+            </div>
+            <button class="btn btn-primary" style="width:100%;background:linear-gradient(135deg,#38bdf8,#0284c7);color:#000">Launch 🇺🇸 US Stocks Theme on Screen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">⚙️ Customize Stock & Crypto Symbols</div>
+          <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" onclick="applyCustomMarketSymbols()">Apply & Fetch Symbols</button>
+        </div>
+        <div class="grid-2">
+          <div>
+            <div class="control-row">
+              <span class="control-label">🇵🇰 PSX Stock Symbols</span>
+              <input type="text" id="market-psx-symbols" value="SYS,LUCK,OGDC,HUBC,MEBL,ENGRO,PPL,FFC,PSO,MARI,TRG,HBL" />
+            </div>
+            <div class="control-row" style="margin-bottom:0">
+              <span class="control-label">🇺🇸 US Stock Symbols</span>
+              <input type="text" id="market-us-symbols" value="NVDA,AAPL,TSLA,MSFT,AMZN,META,GOOGL,AMD" />
+            </div>
+          </div>
+          <div>
+            <div class="control-row">
+              <span class="control-label">₿ Crypto Symbols</span>
+              <input type="text" id="market-crypto-symbols" value="BTC,ETH,SOL,BNB,XRP,DOGE,ADA" />
+            </div>
+            <div class="control-row" style="margin-bottom:0">
+              <span class="control-label">USD to Rupee (Rs.) Rate</span>
+              <input type="number" id="market-usd-pkr" value="278.65" step="0.25" style="max-width:160px" onchange="applyCustomMarketSymbols()" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: YOUTUBE & WEBSITES -->
+    <div id="tab-web" class="tab-pane">
+      <div class="grid-2">
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🌐 Live YouTube & Website Cast (1920 × 462)</div>
+              <button class="btn btn-save" style="padding:5px 12px;font-size:12px" onclick="saveAllSettingsNow(true)">💾 Save Website & Zoom</button>
+            </div>
+
+            <div class="url-bar-wrap">
+              <button class="icon-btn" onclick="sendCmd('webBack')" title="Back">◀</button>
+              <button class="icon-btn" onclick="sendCmd('webForward')" title="Forward">▶</button>
+              <button class="icon-btn" onclick="sendCmd('webReload')" title="Reload">↻</button>
+              <input type="url" id="url-input" placeholder="Paste any YouTube watch URL or website URL..." value="https://www.youtube.com/watch?v=jfKfPfyJRdk" onkeydown="if(event.key==='Enter') navigateUrl()" />
+              <button class="btn btn-primary" onclick="navigateUrl()">Go to Site</button>
+              <button class="btn" onclick="saveCurrentBookmark()" title="Bookmark this URL + Zoom + Scroll position">★ Bookmark</button>
+            </div>
+
+            <div class="card-header" style="margin-top:8px;margin-bottom:8px">
+              <div class="card-title" style="font-size:11px">⚡ 1-Click YouTube Streams & Internet Dashboards</div>
+            </div>
+            <div class="preset-grid" id="web-presets-grid"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📐 Website Scaling & Scroll Framing</div>
+              <button class="btn" style="padding:4px 10px;font-size:11px" onclick="resetWebFraming()">Reset 100%</button>
+            </div>
+
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+              <button class="btn" style="padding:5px 10px;font-size:11.5px" onclick="setQuickWebZoom(50)">50% Wide</button>
+              <button class="btn" style="padding:5px 10px;font-size:11.5px" onclick="setQuickWebZoom(67)">67% Fit Page</button>
+              <button class="btn" style="padding:5px 10px;font-size:11.5px" onclick="setQuickWebZoom(80)">80% Compact</button>
+              <button class="btn" style="padding:5px 10px;font-size:11.5px" onclick="setQuickWebZoom(100)">100% Native</button>
+              <button class="btn" style="padding:5px 10px;font-size:11.5px" onclick="setQuickWebZoom(125)">125% Large</button>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Website Scale / Zoom</span>
+              <input type="range" id="web-zoom" min="25" max="250" value="100" oninput="updateWebFraming()" />
+              <span class="control-val" id="web-zoom-val">100%</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Vertical Scroll (Y)</span>
+              <input type="range" id="web-offset-y" min="-300" max="2600" value="0" oninput="updateWebFraming()" />
+              <span class="control-val" id="web-offset-y-val">0 px</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Horizontal Scroll (X)</span>
+              <input type="range" id="web-offset-x" min="-400" max="1200" value="0" oninput="updateWebFraming()" />
+              <span class="control-val" id="web-offset-x-val">0 px</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Auto-Scroll Bounce</span>
+              <input type="range" id="web-autoscroll" min="0" max="10" step="0.5" value="0" oninput="updateWebFraming()" />
+              <span class="control-val" id="web-autoscroll-val">Off</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Page Brightness</span>
+              <input type="range" id="web-brightness" min="30" max="150" value="100" oninput="updateWebFraming()" />
+              <span class="control-val" id="web-brightness-val">100%</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Auto-Refresh Page</span>
+              <select id="web-refresh" onchange="updateWebRefresh()" style="max-width:180px">
+                <option value="0">Disabled</option>
+                <option value="30">Every 30 seconds</option>
+                <option value="60">Every 1 minute</option>
+                <option value="300">Every 5 minutes</option>
+                <option value="900">Every 15 minutes</option>
+              </select>
+              <label class="chip">
+                <input type="checkbox" id="web-invert" onchange="updateWebFraming()" />
+                Dark Mode Invert
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: VIDEOS, GIFS & BUILT-IN 1920x462 MEDIA CONVERTER -->
+    <div id="tab-media" class="tab-pane">
+      <div class="grid-2">
+        <div>
+          <div class="card" style="border-color:rgba(0,242,254,0.35)">
+            <div class="card-header">
+              <div class="card-title" style="color:#00f2fe">⚡ Built-In 1920 × 462 Image & Video Converter / Auto-Resizer</div>
+              <button class="btn btn-primary" onclick="triggerUploadMedia(true)">⚡ Upload & Auto-Convert to 1920×462</button>
+            </div>
+
+            <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+              Automatically resizes and converts any uploaded image (JPG, PNG, WEBP, BMP) or video/GIF (MP4, WEBM, MOV, MKV, AVI, GIF) to native <b>1920 × 462</b> resolution using the built-in C# & FFmpeg converter engine.
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">1920×462 Converter Mode</span>
+              <select id="convert-mode" onchange="onConvertModeChanged()">
+                <option value="stretch" selected>📐 Full 1920×462 Exact Resize (Fit Entire Picture/Video to Screen)</option>
+                <option value="blur-fill">✨ Smart 1920×462 Ambient Blur Wings (Sharp Center + Blurred Sides)</option>
+                <option value="triple">🖼️ Triple 3× Side-by-Side 1920×462 Panorama</option>
+                <option value="cover">🎬 1920×462 Widescreen Center Crop</option>
+              </select>
+            </div>
+
+            <div class="toggle-row" style="align-items:center;justify-content:space-between">
+              <label class="chip">
+                <input type="checkbox" id="auto-convert-upload" checked onchange="scheduleAutoSave()" />
+                Auto-Convert & Resize Every Uploaded Image/Video to 1920×462
+              </label>
+              <div style="display:flex;gap:6px">
+                <button class="btn" style="padding:5px 11px;font-size:11.5px;border-color:rgba(16,185,129,0.5);color:#34d399" onclick="convertCurrentPlaylistItem()">🔄 Convert Selected Item</button>
+                <button class="btn" style="padding:5px 11px;font-size:11.5px;border-color:rgba(0,242,254,0.5);color:#00f2fe" onclick="convertAllPlaylistItems()">⚡ Convert All Playlist Files</button>
+              </div>
+            </div>
+
+            <div id="converter-status-box" style="margin-top:10px;padding:8px 12px;border-radius:9px;background:rgba(0,242,254,0.08);border:1px solid rgba(0,242,254,0.22);font-size:12px;color:#e2e8f0">
+              ✅ Built-In 1920×462 Converter Ready (C# Bicubic Image Resizer + Bundled FFmpeg 7.0 Video/GIF Transcoder)
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🎬 Local Videos, Animated GIFs & Wallpaper Playlist</div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary" onclick="triggerUploadMedia()">+ Add Local Video / GIF / Image</button>
+                <button class="btn btn-save" onclick="saveAllSettingsNow(true)">💾 Save Playlist</button>
+              </div>
+            </div>
+
+            <div class="url-bar-wrap">
+              <input type="text" id="media-url-input" placeholder="Or paste direct URL to .mp4 / .webm / .gif / .png / .jpg..." />
+              <button class="btn" onclick="addRemoteMediaUrl()">Add URL</button>
+            </div>
+
+            <div class="playlist-list" id="media-playlist"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🖼️ Live Screen Scaling, Rotation & Slideshow</div>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Live Screen Fit Mode</span>
+              <select id="media-fit" onchange="updateMediaConfig()">
+                <option value="stretch" selected>📐 Resize / Stretch to Full 1920×462 Screen (No Cropping)</option>
+                <option value="blur-fill">✨ Smart 1920×462 Ambient Blur Background + Sharp Center</option>
+                <option value="cover">🎬 Cover / Crop Widescreen 1920×462 Strip</option>
+                <option value="contain">🖼️ Contain Uncropped</option>
+              </select>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Rotate Media</span>
+              <select id="media-rotate" onchange="updateMediaConfig()" style="max-width:160px">
+                <option value="0">0° Normal</option>
+                <option value="180">180° Upside-Down Flip</option>
+                <option value="90">90° Clockwise</option>
+                <option value="270">270° Counter-Clockwise</option>
+              </select>
+              <label class="chip"><input type="checkbox" id="media-fliph" onchange="updateMediaConfig()" /> ↔ Flip H</label>
+              <label class="chip"><input type="checkbox" id="media-flipv" onchange="updateMediaConfig()" /> ↕ Flip V</label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Media Zoom</span>
+              <input type="range" id="media-zoom" min="0.5" max="3.0" step="0.05" value="1.0" oninput="updateMediaConfig()" />
+              <span class="control-val" id="media-zoom-val">1.00x</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Vertical Pan (Y)</span>
+              <input type="range" id="media-pan-y" min="-500" max="500" step="5" value="0" oninput="updateMediaConfig()" />
+              <span class="control-val" id="media-pan-y-val">0 px</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Horizontal Pan (X)</span>
+              <input type="range" id="media-pan-x" min="-500" max="500" step="5" value="0" oninput="updateMediaConfig()" />
+              <span class="control-val" id="media-pan-x-val">0 px</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Playlist Auto-Cycle</span>
+              <select id="playlist-interval" onchange="updatePlaylistTimer()">
+                <option value="0">Stay on selected item</option>
+                <option value="10">Cycle every 10 seconds</option>
+                <option value="30">Cycle every 30 seconds</option>
+                <option value="60">Cycle every 1 minute</option>
+                <option value="300">Cycle every 5 minutes</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: LIVE PC STATS HUD OVERLAY -->
+    <div id="tab-hud" class="tab-pane">
+      <div class="grid-2">
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📊 HUD Overlay Layout (Works Over Websites, Themes & Videos!)</div>
+              <button class="btn btn-save" style="padding:5px 12px;font-size:12px" onclick="saveAllSettingsNow(true)">💾 Save HUD</button>
+            </div>
+            <div class="preset-grid" id="hud-presets-grid"></div>
+
+            <div class="card-header" style="margin-top:16px;margin-bottom:8px">
+              <div class="card-title" style="font-size:11px">🔥 Live Telemetry Readout (From HWiNFO64 / Windows Sensors)</div>
+            </div>
+            <div class="sensor-live-grid">
+              <div class="sensor-mini">
+                <div class="sensor-mini-label">CPU Temp & Load</div>
+                <div class="sensor-mini-val" id="live-cpu">--°C · --%</div>
+              </div>
+              <div class="sensor-mini">
+                <div class="sensor-mini-label">GPU Temp & Load</div>
+                <div class="sensor-mini-val" id="live-gpu">--°C · --%</div>
+              </div>
+              <div class="sensor-mini">
+                <div class="sensor-mini-label">CPU Clock & Power</div>
+                <div class="sensor-mini-val" id="live-clock">---- MHz</div>
+              </div>
+              <div class="sensor-mini">
+                <div class="sensor-mini-label">System Memory</div>
+                <div class="sensor-mini-val" id="live-ram">--%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">⚙️ HUD Appearance & Displayed Metrics</div>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">HUD Opacity</span>
+              <input type="range" id="hud-opacity" min="0.2" max="1.0" step="0.05" value="0.92" oninput="updateHudConfig()" />
+              <span class="control-val" id="hud-opacity-val">92%</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">HUD Size Scale</span>
+              <input type="range" id="hud-scale" min="0.7" max="1.35" step="0.05" value="1.0" oninput="updateHudConfig()" />
+              <span class="control-val" id="hud-scale-val">1.00x</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Temperature Unit</span>
+              <select id="hud-temp-unit" onchange="updateHudConfig()" style="max-width:160px">
+                <option value="C">Celsius (°C)</option>
+                <option value="F">Fahrenheit (°F)</option>
+              </select>
+            </div>
+
+            <div class="toggle-row">
+              <label class="chip"><input type="checkbox" id="hud-cpu" checked onchange="updateHudConfig()" /> CPU Temp & Load</label>
+              <label class="chip"><input type="checkbox" id="hud-gpu" checked onchange="updateHudConfig()" /> GPU Temp & Load</label>
+              <label class="chip"><input type="checkbox" id="hud-ram" checked onchange="updateHudConfig()" /> RAM Usage</label>
+              <label class="chip"><input type="checkbox" id="hud-net" checked onchange="updateHudConfig()" /> Network Speed</label>
+              <label class="chip"><input type="checkbox" id="hud-clock" checked onchange="updateHudConfig()" /> Time & Date</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: AUDIO VISUALIZER & USB HARDWARE SETTINGS -->
+    <div id="tab-audio" class="tab-pane">
+      <div class="grid-2">
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🎵 Real-Time Desktop Audio Visualizer (WASAPI Loopback)</div>
+            </div>
+            <div class="preset-grid" id="viz-presets-grid" style="margin-bottom:16px"></div>
+
+            <div class="control-row">
+              <span class="control-label">Audio Gain / Sensitivity</span>
+              <input type="range" id="viz-gain" min="0.3" max="4.0" step="0.1" value="1.4" oninput="updateHudConfig()" />
+              <span class="control-val" id="viz-gain-val">1.4x</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Visualizer Height</span>
+              <input type="range" id="viz-height" min="30" max="240" step="5" value="90" oninput="updateHudConfig()" />
+              <span class="control-val" id="viz-height-val">90 px</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Visualizer Opacity</span>
+              <input type="range" id="viz-opacity" min="0.2" max="1.0" step="0.05" value="0.85" oninput="updateHudConfig()" />
+              <span class="control-val" id="viz-opacity-val">85%</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🔌 Thermalright TL-M10 Vision Hardware Output</div>
+              <button class="btn btn-primary" style="padding:5px 12px;font-size:12px" onclick="sendCmd('restartUsbDriver')">⚡ Reconnect USB Driver</button>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Screen Orientation</span>
+              <select id="hw-rotation" onchange="setHardwareRotation(this.value)">
+                <option value="180" selected>180° TL-M10 Normal (Right-Side Up Default)</option>
+                <option value="0">0° Unflipped (Upside-Down on TL-M10)</option>
+                <option value="90">90° Rotate Clockwise</option>
+                <option value="270">270° Rotate Counter-Clockwise</option>
+                <option value="360">↔ Mirror / Flip Horizontal</option>
+                <option value="540">↕ Mirror / Flip Vertical</option>
+              </select>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">LCD Brightness</span>
+              <input type="range" id="hw-brightness" min="15" max="100" value="100" oninput="updateHardwareConfig()" />
+              <span class="control-val" id="hw-brightness-val">100%</span>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">Target Stream FPS</span>
+              <select id="hw-fps" onchange="updateHardwareConfig()">
+                <option value="15">15 FPS (Ultra-low CPU)</option>
+                <option value="20">20 FPS (Balanced)</option>
+                <option value="25" selected>25 FPS (Smooth Recommended)</option>
+                <option value="30">30 FPS (Max USB Speed)</option>
+              </select>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label">JPEG Stream Quality</span>
+              <input type="range" id="hw-quality" min="50" max="98" value="88" oninput="updateHardwareConfig()" />
+              <span class="control-val" id="hw-quality-val">88%</span>
+            </div>
+
+            <div class="toggle-row" style="margin-top:12px">
+              <label class="chip" style="border-color:rgba(16,185,129,0.45);background:rgba(16,185,129,0.12)">
+                <input type="checkbox" id="hw-start-windows" onchange="toggleStartWithWindows(this.checked)" />
+                🚀 Start with Windows Automatically
+              </label>
+              <label class="chip">
+                <input type="checkbox" id="start-minimized-boot" checked onchange="toggleStartWithWindows()" />
+                📥 Start Minimized in System Tray on Boot
+              </label>
+            </div>
+
+            <div class="toggle-row" style="margin-top:14px">
+              <button class="btn btn-save" onclick="saveAllSettingsNow(true)">💾 Save All Settings</button>
+              <button class="btn btn-tray" onclick="sendCmd('minimizeToTray')">📥 Minimize to System Tray</button>
+              <button class="btn" onclick="sendCmd('togglePopoutPreview')">🗗 1:1 Desktop Overlay</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const defaultWebPresets = [
+      { name: '🎵 YouTube Lofi Hip Hop', desc: 'Lofi Girl 24/7 radio (Cinema Mode)', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', zoom: 100, y: 0 },
+      { name: '🌆 YouTube Synthwave Radio', desc: '24/7 Chillsynth / Outrun stream', url: 'https://www.youtube.com/watch?v=4xDzrJKXOOY', zoom: 100, y: 0 },
+      { name: '📺 YouTube Home', desc: 'Browse & search any video', url: 'https://www.youtube.com', zoom: 80, y: 0 },
+      { name: '🇵🇰 PSX Data Portal Live', desc: 'Official Pakistan Stock Exchange portal', url: 'https://dps.psx.com.pk', zoom: 80, y: 0 },
+      { name: '₿ TradingView BTC/USD', desc: 'Live Bitcoin candlestick chart', url: 'https://s.tradingview.com/widgetembed/?symbol=BINANCE:BTCUSDT&interval=15&theme=dark&style=1', zoom: 100, y: 0 },
+      { name: '🇺🇸 TradingView NASDAQ/NVDA', desc: 'Live NVIDIA Wall Street chart', url: 'https://s.tradingview.com/widgetembed/?symbol=NASDAQ:NVDA&interval=15&theme=dark&style=1', zoom: 100, y: 0 },
+      { name: '🌧️ Windy Radar Pakistan', desc: 'Live animated wind & rain map', url: 'https://embed.windy.com/embed2.html?lat=31.5&lon=73.0&zoom=5&level=surface&overlay=wind', zoom: 100, y: 0 },
+      { name: '🌍 Earth Nullschool Globe', desc: 'Global wind & ocean currents', url: 'https://earth.nullschool.net', zoom: 90, y: 0 },
+      { name: '⏰ Time.is Exact Clock', desc: 'Minimalist ultra-wide world clock', url: 'https://time.is/just', zoom: 100, y: 0 },
+      { name: '🎧 Spotify Web Player', desc: 'Now playing & playlists', url: 'https://open.spotify.com', zoom: 85, y: 0 },
+      { name: '📰 Hacker News Feed', desc: 'Live tech news (try Auto-Scroll!)', url: 'https://news.ycombinator.com', zoom: 95, y: 0 },
+      { name: '✨ Built-In 60FPS Themes', desc: 'Return to instant built-in themes', url: 'https://vision.local/screen.html', zoom: 100, y: 0 }
+    ];
+
+    // Original 9 Classic TL-M10 Themes (work great with Dual Side-Wings HUD & 64-Band Spectrum Bars)
+    const classicAnimPresets = [
+      { id: 'synthwave', name: '🌆 Synthwave Outrun', desc: 'Retro neon sun, grid & horizon' },
+      { id: 'f1telemetry', name: '🏎️ F1 Shift-Light Strip', desc: '15 RPM shift LEDs + live telemetry' },
+      { id: 'matrix', name: '🟩 Matrix Digital Rain', desc: 'Cybernetic katakana code rain' },
+      { id: 'aurora', name: '🌌 Aurora Plasma Silk', desc: 'Glowing multi-wave ribbons' },
+      { id: 'cyberhud', name: '🎯 Cyberpunk Reactors', desc: 'Triple rotating sci-fi HUD rings' },
+      { id: 'starfield', name: '🚀 Hyperspace Warp', desc: '3D star streaks + bass boost' },
+      { id: 'constellation', name: '🕸️ Neural Constellation', desc: 'Connected glowing node network' },
+      { id: 'neonrain', name: '🌧️ Tokyo Midnight Rain', desc: 'City bokeh lights + glass rain' },
+      { id: 'metaballs', name: '🔮 Liquid Neon Plasma', desc: 'Organic glowing fluid blobs' }
+    ];
+
+    // 6 Dedicated Clock Theme Designs for 1920x462
+    const clockAnimPresets = [
+      { id: 'mooas-flip', name: '🕰️ Mooas Split-Flap Clock', desc: 'Matte-black ribbed flip drums + walnut base' },
+      { id: 'flipclock', name: '🔢 3-Drum Studio Flip-Clock', desc: 'Giant HH:MM:SS split-flap + PC gauges' },
+      { id: 'nixieclock', name: '🔥 Steampunk Nixie Tubes', desc: '6 glowing IN-18 glass cathode tubes' },
+      { id: 'swiss-chrono', name: '⌚ Swiss Triple Chronograph', desc: 'Luxury analog watch + CPU/GPU dials' },
+      { id: 'led-matrix-clock', name: '📟 Cyber LED Broadcast Clock', desc: '60-LED second bar + studio readout' },
+      { id: 'word-clock', name: '🔤 Illuminated Word Clock', desc: 'Designer word matrix + digital hybrid' }
+    ];
+
+    // New Standalone Full-Screen 1920x462 Themes
+    const newAnimPresets = [
+      { id: 'btc-terminal', name: '₿ BTC & Crypto Terminal', desc: 'Live BTC & 6 coins (Selectable Currency: USD/PKR/EUR)' },
+      { id: 'psx-stocks', name: '🇵🇰 PSX Stock Exchange', desc: 'Live KSE-100 & PSX stocks in Rs.' },
+      { id: 'us-stocks', name: '🇺🇸 US Wall Street Stocks', desc: 'Live NVDA, AAPL, TSLA, MSFT + chart' },
+      { id: 'cybermap', name: '🛡️ Global Cyber Radar Map', desc: 'Live tactical radar + world packet arcs' },
+      { id: 'cybercity', name: '🌃 Cyberpunk Night City', desc: 'Parallax neon skyline & flying traffic' },
+      { id: 'vumeter', name: '🎚️ Dual Studio VU Meters', desc: 'Warm backlit analog audio VU needles' }
+    ];
+
+    const hudPresets = [
+      { id: 'side-wings', name: '🦅 Dual Side-Wings', desc: 'Left CPU + Right GPU (center clear!)' },
+      { id: 'floating-pills', name: '💊 Floating Corner Pills', desc: 'Compact glass pills in top corners' },
+      { id: 'bottom-bar', name: '➖ Ultra-Wide Bottom Bar', desc: 'Sleek 54px telemetry bar along bottom' },
+      { id: 'cyber-brackets', name: '⚡ Cyberpunk Brackets', desc: 'Angled neon sci-fi corner frames' },
+      { id: 'glass-cards', name: '🧊 Frosted Glass Deck', desc: '4 modern cards along bottom center' },
+      { id: 'full-dashboard', name: '🖥️ Full-Screen Dashboard', desc: 'Giant gauges filling 1920×462' },
+      { id: 'off', name: '🚫 Hide HUD Overlay', desc: 'Clean 100% unobstructed screen' }
+    ];
+
+    const vizPresets = [
+      { id: 'spectrum-bars', name: '📊 64-Band Spectrum Bars', desc: 'Neon frequency bars across 1920px' },
+      { id: 'mirror-eq', name: '🪞 Symmetrical Mirror EQ', desc: 'Center-outward mirrored equalizer' },
+      { id: 'neon-wave', name: '〰️ Smooth Neon Ribbon Wave', desc: 'Glowing quadratic audio waveform' },
+      { id: 'bass-glow', name: '💥 Ambient Bass Edge Pulse', desc: 'Screen edges pulse with bass hits' },
+      { id: 'off', name: '🔇 Visualizer Off', desc: 'Disable audio spectrum overlay' }
+    ];
+
+    const standaloneThemeIds = new Set([
+      'btc-terminal', 'psx-stocks', 'us-stocks',
+      'mooas-flip', 'flipclock', 'nixieclock', 'swiss-chrono', 'led-matrix-clock', 'word-clock',
+      'vumeter'
+    ]);
+    const classicThemeIds = new Set(classicAnimPresets.map(a => a.id));
+
+    let customBookmarks = [];
+    try {
+      customBookmarks = JSON.parse(localStorage.getItem('tlm10_bookmarks') || '[]');
+    } catch (e) {}
+
+    let activeScreenMode = 'animation';
+    let currentAnim = 'synthwave';
+    let currentHud = 'side-wings';
+    let lastPreferredHud = 'side-wings';
+    let currentViz = 'spectrum-bars';
+    let lastPreferredViz = 'spectrum-bars';
+    let marketCurrency = 'USD';
+    let latestMarketDataCache = null;
+    let mediaPlaylist = [
+      { name: '🕰️ Mooas Mechanical Split-Flap Clock', url: '__anim__:mooas-flip', type: 'anim' },
+      { name: '🌆 Built-In Synthwave Outrun', url: '__anim__:synthwave', type: 'anim' },
+      { name: '🏎️ Built-In F1 Telemetry Strip', url: '__anim__:f1telemetry', type: 'anim' },
+      { name: '₿ Bitcoin & Crypto Live Terminal', url: '__anim__:btc-terminal', type: 'anim' },
+      { name: '🇵🇰 PSX Stock Exchange Live', url: '__anim__:psx-stocks', type: 'anim' },
+      { name: '🇺🇸 US Wall Street Stocks Live', url: '__anim__:us-stocks', type: 'anim' }
+    ];
+    let currentMediaIdx = 0;
+    let playlistTimerId = null;
+    let autoSaveTimeout = null;
+    let isRestoringSettings = false;
+
+    function postToHost(msg) {
+      if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage(JSON.stringify(msg));
+      }
+    }
+
+    function sendCmd(cmd, data = {}) {
+      postToHost({ cmd, ...data });
+    }
+
+    function toggleStartWithWindows(checkedVal) {
+      const c1 = document.getElementById('start-with-windows');
+      const c2 = document.getElementById('hw-start-windows');
+      const enabled = (checkedVal !== undefined) ? Boolean(checkedVal) : (c1 ? c1.checked : false);
+      if (c1 && c1.checked !== enabled) c1.checked = enabled;
+      if (c2 && c2.checked !== enabled) c2.checked = enabled;
+      const startMin = document.getElementById('start-minimized-boot') ? document.getElementById('start-minimized-boot').checked : true;
+      sendCmd('setStartWithWindows', { enabled, startMinimized: startMin });
+      scheduleAutoSave();
+    }
+
+    function syncCurrencyChoice(val) {
+      marketCurrency = val || 'USD';
+      const s1 = document.getElementById('market-currency');
+      const s2 = document.getElementById('anim-currency');
+      if (s1 && s1.value !== marketCurrency) s1.value = marketCurrency;
+      if (s2 && s2.value !== marketCurrency) s2.value = marketCurrency;
+      updateMarketDeckPrices();
+      updateAnimConfig(false);
+      scheduleAutoSave();
+    }
+
+    function triggerUploadMedia(forceConvert = false) {
+      const autoConv = forceConvert || (document.getElementById('auto-convert-upload') && document.getElementById('auto-convert-upload').checked);
+      const convMode = document.getElementById('convert-mode') ? document.getElementById('convert-mode').value : 'stretch';
+      sendCmd('pickMediaFiles', { autoConvert: autoConv, convertMode: convMode });
+    }
+
+    function onConvertModeChanged() {
+      scheduleAutoSave();
+      const item = mediaPlaylist[currentMediaIdx];
+      if (item && item.type !== 'anim') {
+        convertCurrentPlaylistItem();
+      }
+    }
+
+    function convertCurrentPlaylistItem() {
+      const item = mediaPlaylist[currentMediaIdx];
+      if (!item || item.type === 'anim') {
+        const box = document.getElementById('converter-status-box');
+        if (box) box.textContent = 'ℹ️ Select an uploaded image, GIF, or video in the playlist first, or click "⚡ Upload & Auto-Convert to 1920×462".';
+        return;
+      }
+      const convMode = document.getElementById('convert-mode') ? document.getElementById('convert-mode').value : 'stretch';
+      const box = document.getElementById('converter-status-box');
+      if (box) box.textContent = `⏳ Converting "${item.name}" to 1920×462 (${convMode})...`;
+      sendCmd('convertExistingMedia', {
+        playlistIndex: currentMediaIdx,
+        filePath: item.localPath || '',
+        mediaUrl: item.url || '',
+        convertMode: convMode
+      });
+    }
+
+    function convertAllPlaylistItems() {
+      const convMode = document.getElementById('convert-mode') ? document.getElementById('convert-mode').value : 'stretch';
+      const itemsToConvert = [];
+      mediaPlaylist.forEach((item, idx) => {
+        if (item && item.type !== 'anim' && (item.localPath || item.url)) {
+          itemsToConvert.push({
+            playlistIndex: idx,
+            filePath: item.localPath || '',
+            mediaUrl: item.url || ''
+          });
+        }
+      });
+      if (itemsToConvert.length === 0) {
+        const box = document.getElementById('converter-status-box');
+        if (box) box.textContent = 'ℹ️ No local images or videos in playlist yet. Click "⚡ Upload & Auto-Convert to 1920×462" first!';
+        return;
+      }
+      const box = document.getElementById('converter-status-box');
+      if (box) box.textContent = `⏳ Batch converting ${itemsToConvert.length} file(s) to 1920×462 (${convMode})...`;
+      sendCmd('convertBatchMedia', {
+        items: itemsToConvert,
+        convertMode: convMode
+      });
+    }
+
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      const pane = document.getElementById('tab-' + tabId);
+      if (pane) pane.classList.add('active');
+      if (btn) btn.classList.add('active');
+      else {
+        const tb = document.getElementById('tabbtn-' + tabId);
+        if (tb) tb.classList.add('active');
+      }
+    }
+
+    function gatherFullSettingsObject() {
+      return {
+        activeScreenMode,
+        currentAnim,
+        currentHud,
+        lastPreferredHud,
+        currentViz,
+        lastPreferredViz,
+        marketCurrency,
+        clock24h: document.getElementById('clock-24h') ? document.getElementById('clock-24h').checked : false,
+        startWithWindows: document.getElementById('start-with-windows') ? document.getElementById('start-with-windows').checked : false,
+        startMinimizedOnBoot: document.getElementById('start-minimized-boot') ? document.getElementById('start-minimized-boot').checked : true,
+        autoConvertUpload: document.getElementById('auto-convert-upload') ? document.getElementById('auto-convert-upload').checked : true,
+        convertMode: document.getElementById('convert-mode') ? document.getElementById('convert-mode').value : 'stretch',
+        webUrl: document.getElementById('url-input').value.trim(),
+        webZoom: Number(document.getElementById('web-zoom').value),
+        webOffsetY: Number(document.getElementById('web-offset-y').value),
+        webOffsetX: Number(document.getElementById('web-offset-x').value),
+        webAutoScroll: Number(document.getElementById('web-autoscroll').value),
+        webBrightness: Number(document.getElementById('web-brightness').value),
+        webInvert: document.getElementById('web-invert').checked,
+        webRefresh: Number(document.getElementById('web-refresh').value),
+        customBookmarks,
+        animSpeed: Number(document.getElementById('anim-speed').value),
+        accentColor: document.getElementById('anim-color1').value,
+        secondaryColor: document.getElementById('anim-color2').value,
+        heroText: document.getElementById('hero-text').value,
+        heroSubText: document.getElementById('hero-subtext').value,
+        bannerText: document.getElementById('banner-text').value,
+        audioReactive: document.getElementById('anim-audio-react').checked,
+        customHtml: document.getElementById('custom-html-input').value,
+        mediaPlaylist,
+        currentMediaIdx,
+        mediaFit: document.getElementById('media-fit').value,
+        mediaRotate: Number(document.getElementById('media-rotate').value || 0),
+        mediaFlipH: document.getElementById('media-fliph').checked,
+        mediaFlipV: document.getElementById('media-flipv').checked,
+        mediaZoom: Number(document.getElementById('media-zoom').value),
+        mediaPanY: Number(document.getElementById('media-pan-y').value),
+        mediaPanX: Number(document.getElementById('media-pan-x').value),
+        playlistInterval: Number(document.getElementById('playlist-interval').value),
+        hudOpacity: Number(document.getElementById('hud-opacity').value),
+        hudScale: Number(document.getElementById('hud-scale').value),
+        tempUnit: document.getElementById('hud-temp-unit').value,
+        showCpu: document.getElementById('hud-cpu').checked,
+        showGpu: document.getElementById('hud-gpu').checked,
+        showRam: document.getElementById('hud-ram').checked,
+        showNet: document.getElementById('hud-net').checked,
+        showClock: document.getElementById('hud-clock').checked,
+        vizGain: Number(document.getElementById('viz-gain').value),
+        vizHeight: Number(document.getElementById('viz-height').value),
+        vizOpacity: Number(document.getElementById('viz-opacity').value),
+        rotation: Number(document.getElementById('hw-rotation').value),
+        brightness: Number(document.getElementById('hw-brightness').value),
+        fps: Number(document.getElementById('hw-fps').value),
+        quality: Number(document.getElementById('hw-quality').value),
+        psxSymbols: document.getElementById('market-psx-symbols').value.trim(),
+        usSymbols: document.getElementById('market-us-symbols').value.trim(),
+        cryptoSymbols: document.getElementById('market-crypto-symbols').value.trim(),
+        usdToPkr: Number(document.getElementById('market-usd-pkr').value || 278.65)
+      };
+    }
+
+    function scheduleAutoSave() {
+      if (isRestoringSettings) return;
+      if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+      autoSaveTimeout = setTimeout(() => {
+        saveAllSettingsNow(false);
+      }, 300);
+    }
+
+    function saveAllSettingsNow(showVisualFeedback = true) {
+      const settings = gatherFullSettingsObject();
+      try {
+        localStorage.setItem('tlm10_full_settings', JSON.stringify(settings));
+      } catch (e) {}
+      sendCmd('saveSettings', { settings });
+
+      if (showVisualFeedback) {
+        const btn = document.getElementById('save-all-btn');
+        if (btn) {
+          const orig = btn.textContent;
+          btn.textContent = '✅ Saved!';
+          setTimeout(() => { btn.textContent = orig; }, 1600);
+        }
+      }
+    }
+
+    function applyCustomMarketSymbols() {
+      const psxSymbols = document.getElementById('market-psx-symbols').value.trim();
+      const usSymbols = document.getElementById('market-us-symbols').value.trim();
+      const cryptoSymbols = document.getElementById('market-crypto-symbols').value.trim();
+      const usdToPkr = Number(document.getElementById('market-usd-pkr').value || 278.65);
+      sendCmd('updateMarketSymbols', { psxSymbols, usSymbols, cryptoSymbols, usdToPkr });
+      scheduleAutoSave();
+    }
+
+    function renderWebPresets() {
+      const grid = document.getElementById('web-presets-grid');
+      const all = [...defaultWebPresets, ...customBookmarks];
+      grid.innerHTML = all.map((p, idx) => `
+        <div class="preset-card" onclick="launchWebPreset(${idx})">
+          <div class="preset-name">${p.name}</div>
+          <div class="preset-desc">${p.desc || p.url}</div>
+        </div>
+      `).join('');
+    }
+
+    function launchWebPreset(idx) {
+      const all = [...defaultWebPresets, ...customBookmarks];
+      const p = all[idx];
+      if (!p) return;
+      if (p.url.includes('vision.local/screen.html')) {
+        selectAnimPreset(currentAnim || 'synthwave');
+        return;
+      }
+      document.getElementById('url-input').value = p.url;
+      document.getElementById('web-zoom').value = p.zoom || 100;
+      document.getElementById('web-offset-y').value = p.y || 0;
+      document.getElementById('web-offset-x').value = p.x || 0;
+      document.getElementById('web-brightness').value = 100;
+      updateWebFraming();
+      navigateUrl();
+    }
+
+    function setQuickWebZoom(z) {
+      document.getElementById('web-zoom').value = z;
+      updateWebFraming();
+    }
+
+    function normalizeYouTubeUrl(url) {
+      // Convert /embed/VIDEO_ID links that YouTube blocks without Referer into direct /watch?v=VIDEO_ID links
+      const m = url.match(/^https?:\/\/(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/i);
+      if (m && m[1]) {
+        return 'https://www.youtube.com/watch?v=' + m[1];
+      }
+      return url;
+    }
+
+    function navigateUrl() {
+      let url = document.getElementById('url-input').value.trim();
+      if (!url) return;
+      if (!/^https?:\/\//i.test(url)) {
+        url = 'https://' + url;
+      }
+      url = normalizeYouTubeUrl(url);
+      document.getElementById('url-input').value = url;
+
+      activeScreenMode = 'web';
+      renderAnimPresets();
+      const zoom = Number(document.getElementById('web-zoom').value) / 100;
+      sendCmd('navigateWeb', { url, webZoom: zoom });
+      updateHudConfig();
+      scheduleAutoSave();
+    }
+
+    function saveCurrentBookmark() {
+      const url = document.getElementById('url-input').value.trim();
+      if (!url) return;
+      let hostName = url;
+      try { hostName = new URL(url).hostname.replace('www.', ''); } catch (e) {}
+      const bm = {
+        name: '★ ' + hostName,
+        desc: url,
+        url,
+        zoom: Number(document.getElementById('web-zoom').value),
+        y: Number(document.getElementById('web-offset-y').value),
+        x: Number(document.getElementById('web-offset-x').value)
+      };
+      customBookmarks.push(bm);
+      localStorage.setItem('tlm10_bookmarks', JSON.stringify(customBookmarks));
+      renderWebPresets();
+      saveAllSettingsNow(true);
+    }
+
+    function resetWebFraming() {
+      document.getElementById('web-zoom').value = 100;
+      document.getElementById('web-offset-y').value = 0;
+      document.getElementById('web-offset-x').value = 0;
+      document.getElementById('web-autoscroll').value = 0;
+      document.getElementById('web-brightness').value = 100;
+      document.getElementById('web-invert').checked = false;
+      updateWebFraming();
+    }
+
+    function updateWebFraming() {
+      const zoom = Number(document.getElementById('web-zoom').value);
+      const oy = Number(document.getElementById('web-offset-y').value);
+      const ox = Number(document.getElementById('web-offset-x').value);
+      const autoScroll = Number(document.getElementById('web-autoscroll').value);
+      const bright = Number(document.getElementById('web-brightness').value);
+
+      document.getElementById('web-zoom-val').textContent = zoom + '%';
+      document.getElementById('web-offset-y-val').textContent = oy + ' px';
+      document.getElementById('web-offset-x-val').textContent = ox + ' px';
+      document.getElementById('web-autoscroll-val').textContent = autoScroll > 0 ? autoScroll + 'x' : 'Off';
+      document.getElementById('web-brightness-val').textContent = bright + '%';
+
+      updateHudConfig();
+      scheduleAutoSave();
+    }
+
+    let refreshTimer = null;
+    function updateWebRefresh() {
+      if (refreshTimer) clearInterval(refreshTimer);
+      const sec = Number(document.getElementById('web-refresh').value);
+      if (sec > 0) {
+        refreshTimer = setInterval(() => sendCmd('webReload'), sec * 1000);
+      }
+      scheduleAutoSave();
+    }
+
+    function renderAnimPresets() {
+      const classicGrid = document.getElementById('classic-anim-presets-grid');
+      if (classicGrid) {
+        classicGrid.innerHTML = classicAnimPresets.map(a => `
+          <div class="preset-card ${a.id === currentAnim && activeScreenMode === 'animation' ? 'active' : ''}" onclick="selectAnimPreset('${a.id}')">
+            <div class="preset-name">${a.name}</div>
+            <div class="preset-desc">${a.desc}</div>
+          </div>
+        `).join('');
+      }
+
+      const clockGrid = document.getElementById('clock-anim-presets-grid');
+      if (clockGrid) {
+        clockGrid.innerHTML = clockAnimPresets.map(a => `
+          <div class="preset-card ${a.id === currentAnim && activeScreenMode === 'animation' ? 'active' : ''}" onclick="selectAnimPreset('${a.id}')">
+            <div class="preset-name">${a.name}</div>
+            <div class="preset-desc">${a.desc}</div>
+          </div>
+        `).join('');
+      }
+
+      const newGrid = document.getElementById('new-anim-presets-grid');
+      if (newGrid) {
+        newGrid.innerHTML = newAnimPresets.map(a => `
+          <div class="preset-card ${a.id === currentAnim && activeScreenMode === 'animation' ? 'active' : ''}" onclick="selectAnimPreset('${a.id}')">
+            <div class="preset-name">${a.name}</div>
+            <div class="preset-desc">${a.desc}</div>
+          </div>
+        `).join('');
+      }
+
+      ['btc-terminal', 'psx-stocks', 'us-stocks'].forEach(id => {
+        const el = document.getElementById('mcard-' + id);
+        if (el) {
+          if (currentAnim === id && activeScreenMode === 'animation') el.classList.add('active');
+          else el.classList.remove('active');
+        }
+      });
+    }
+
+    function selectAnimPreset(id) {
+      currentAnim = id;
+      activeScreenMode = 'animation';
+
+      if (standaloneThemeIds.has(id)) {
+        if (currentHud !== 'off') lastPreferredHud = currentHud;
+        if (currentViz !== 'off') lastPreferredViz = currentViz;
+        currentHud = 'off';
+        if (id === 'vumeter') currentViz = 'off';
+      } else if (classicThemeIds.has(id) || id === 'cybermap' || id === 'cybercity') {
+        if (currentHud === 'off') {
+          currentHud = lastPreferredHud || 'side-wings';
+        }
+        if (currentViz === 'off') {
+          currentViz = lastPreferredViz || 'spectrum-bars';
+        }
+      }
+
+      renderAnimPresets();
+      renderHudPresets();
+      renderVizPresets();
+      updateAnimConfig(true);
+      scheduleAutoSave();
+    }
+
+    function updateAnimConfig(switchToScreen = false) {
+      const speed = Number(document.getElementById('anim-speed').value);
+      const c1 = document.getElementById('anim-color1').value;
+      const c2 = document.getElementById('anim-color2').value;
+      const heroText = document.getElementById('hero-text').value;
+      const heroSubText = document.getElementById('hero-subtext').value;
+      const audioReactive = document.getElementById('anim-audio-react').checked;
+      const clock24h = document.getElementById('clock-24h') ? document.getElementById('clock-24h').checked : false;
+
+      document.getElementById('anim-speed-val').textContent = speed.toFixed(1) + 'x';
+
+      if (switchToScreen) activeScreenMode = 'animation';
+
+      sendCmd('updateScreenEngine', {
+        ensureEngineLoaded: switchToScreen,
+        config: {
+          screenMode: 'animation',
+          animPreset: currentAnim,
+          animSpeed: speed,
+          accentColor: c1,
+          secondaryColor: c2,
+          heroText,
+          heroSubText,
+          audioReactive,
+          clock24h,
+          marketCurrency
+        }
+      });
+      updateHudConfig();
+      scheduleAutoSave();
+    }
+
+    function runCustomHtml() {
+      activeScreenMode = 'customhtml';
+      const raw = document.getElementById('custom-html-input').value;
+      sendCmd('updateScreenEngine', {
+        ensureEngineLoaded: true,
+        config: {
+          screenMode: 'customhtml',
+          customHtml: raw
+        }
+      });
+      scheduleAutoSave();
+    }
+
+    function renderPlaylist() {
+      const list = document.getElementById('media-playlist');
+      list.innerHTML = mediaPlaylist.map((item, i) => `
+        <div class="playlist-item ${i === currentMediaIdx ? 'active' : ''}" onclick="playMediaIndex(${i})">
+          <div>
+            <div style="font-size:13px;font-weight:700">${item.name}</div>
+            <div style="font-size:11px;color:var(--muted)">${item.type.toUpperCase()}</div>
+          </div>
+          <button class="btn" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation();removeMediaIndex(${i})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    function playMediaIndex(idx) {
+      if (idx < 0 || idx >= mediaPlaylist.length) return;
+      currentMediaIdx = idx;
+      renderPlaylist();
+      const item = mediaPlaylist[idx];
+      if (item.type === 'anim') {
+        const preset = item.url.split(':')[1] || 'synthwave';
+        selectAnimPreset(preset);
+        return;
+      }
+      activeScreenMode = 'media';
+      updateMediaConfig(true);
+      scheduleAutoSave();
+    }
+
+    function removeMediaIndex(idx) {
+      mediaPlaylist.splice(idx, 1);
+      if (currentMediaIdx >= mediaPlaylist.length) currentMediaIdx = 0;
+      renderPlaylist();
+      scheduleAutoSave();
+    }
+
+    function addRemoteMediaUrl() {
+      const url = document.getElementById('media-url-input').value.trim();
+      if (!url) return;
+      const isVid = /\.(mp4|webm|mkv|mov)(\?|$)/i.test(url);
+      mediaPlaylist.push({
+        name: url.split('/').pop() || 'Remote Media',
+        url,
+        type: isVid ? 'video' : 'image'
+      });
+      document.getElementById('media-url-input').value = '';
+      playMediaIndex(mediaPlaylist.length - 1);
+    }
+
+    function updateMediaConfig(switchToScreen = false) {
+      const fit = document.getElementById('media-fit').value;
+      const zoom = Number(document.getElementById('media-zoom').value);
+      const panY = Number(document.getElementById('media-pan-y').value);
+      const panX = Number(document.getElementById('media-pan-x').value);
+      const mediaRotate = Number(document.getElementById('media-rotate').value || 0);
+      const mediaFlipH = document.getElementById('media-fliph').checked;
+      const mediaFlipV = document.getElementById('media-flipv').checked;
+
+      document.getElementById('media-zoom-val').textContent = zoom.toFixed(2) + 'x';
+      document.getElementById('media-pan-y-val').textContent = panY + ' px';
+      document.getElementById('media-pan-x-val').textContent = panX + ' px';
+
+      const item = mediaPlaylist[currentMediaIdx];
+      if (!item || item.type === 'anim') return;
+
+      if (switchToScreen) activeScreenMode = 'media';
+
+      sendCmd('updateScreenEngine', {
+        ensureEngineLoaded: switchToScreen,
+        config: {
+          screenMode: 'media',
+          mediaUrl: item.url,
+          mediaType: item.type,
+          mediaFit: fit,
+          mediaZoom: zoom,
+          mediaPanX: panX,
+          mediaPanY: panY,
+          mediaRotate,
+          mediaFlipH,
+          mediaFlipV
+        }
+      });
+      scheduleAutoSave();
+    }
+
+    function updatePlaylistTimer() {
+      if (playlistTimerId) clearInterval(playlistTimerId);
+      const sec = Number(document.getElementById('playlist-interval').value);
+      if (sec > 0) {
+        playlistTimerId = setInterval(() => {
+          if (mediaPlaylist.length > 0) {
+            playMediaIndex((currentMediaIdx + 1) % mediaPlaylist.length);
+          }
+        }, sec * 1000);
+      }
+      scheduleAutoSave();
+    }
+
+    function renderHudPresets() {
+      const grid = document.getElementById('hud-presets-grid');
+      grid.innerHTML = hudPresets.map(h => `
+        <div class="preset-card ${h.id === currentHud ? 'active' : ''}" onclick="selectHudPreset('${h.id}')">
+          <div class="preset-name">${h.name}</div>
+          <div class="preset-desc">${h.desc}</div>
+        </div>
+      `).join('');
+    }
+
+    function selectHudPreset(id) {
+      currentHud = id;
+      if (id !== 'off') lastPreferredHud = id;
+      renderHudPresets();
+      updateHudConfig();
+      scheduleAutoSave();
+    }
+
+    function renderVizPresets() {
+      const grid = document.getElementById('viz-presets-grid');
+      grid.innerHTML = vizPresets.map(v => `
+        <div class="preset-card ${v.id === currentViz ? 'active' : ''}" onclick="selectVizPreset('${v.id}')">
+          <div class="preset-name">${v.name}</div>
+          <div class="preset-desc">${v.desc}</div>
+        </div>
+      `).join('');
+    }
+
+    function selectVizPreset(id) {
+      currentViz = id;
+      if (id !== 'off') lastPreferredViz = id;
+      renderVizPresets();
+      updateHudConfig();
+      scheduleAutoSave();
+    }
+
+    function updateHudConfig() {
+      const hudOpacity = Number(document.getElementById('hud-opacity').value);
+      const hudScale = Number(document.getElementById('hud-scale').value);
+      const vizGain = Number(document.getElementById('viz-gain').value);
+      const vizHeight = Number(document.getElementById('viz-height').value);
+      const vizOpacity = Number(document.getElementById('viz-opacity').value);
+
+      document.getElementById('hud-opacity-val').textContent = Math.round(hudOpacity * 100) + '%';
+      document.getElementById('hud-scale-val').textContent = hudScale.toFixed(2) + 'x';
+      document.getElementById('viz-gain-val').textContent = vizGain.toFixed(1) + 'x';
+      document.getElementById('viz-height-val').textContent = vizHeight + ' px';
+      document.getElementById('viz-opacity-val').textContent = Math.round(vizOpacity * 100) + '%';
+
+      const overlayState = {
+        hudMode: currentHud,
+        hudOpacity,
+        hudScale,
+        accentColor: document.getElementById('anim-color1').value,
+        secondaryColor: document.getElementById('anim-color2').value,
+        showCpu: document.getElementById('hud-cpu').checked,
+        showGpu: document.getElementById('hud-gpu').checked,
+        showRam: document.getElementById('hud-ram').checked,
+        showNet: document.getElementById('hud-net').checked,
+        showClock: document.getElementById('hud-clock').checked,
+        tempUnit: document.getElementById('hud-temp-unit').value,
+        bannerText: document.getElementById('banner-text').value,
+        vizMode: currentViz,
+        vizGain,
+        vizHeight,
+        vizOpacity,
+        webZoom: Number(document.getElementById('web-zoom').value) / 100,
+        webOffsetY: Number(document.getElementById('web-offset-y').value),
+        webOffsetX: Number(document.getElementById('web-offset-x').value),
+        webAutoScroll: Number(document.getElementById('web-autoscroll').value),
+        webBrightness: Number(document.getElementById('web-brightness').value),
+        webInvert: document.getElementById('web-invert').checked
+      };
+
+      sendCmd('updateOverlayState', { state: overlayState });
+    }
+
+    function quickToggleFlip180() {
+      const cur = Number(document.getElementById('hw-rotation').value);
+      const next = (cur === 180) ? 0 : 180;
+      setHardwareRotation(next);
+    }
+
+    function setHardwareRotation(val) {
+      const v = String(val);
+      const sel1 = document.getElementById('hw-rotation');
+      if (sel1) sel1.value = v;
+      const btn = document.getElementById('quick-flip-btn');
+      if (btn) btn.textContent = '🔄 ' + v + '°';
+      updateHardwareConfig();
+      scheduleAutoSave();
+    }
+
+    function updateHardwareConfig() {
+      const rotation = Number(document.getElementById('hw-rotation').value);
+      const brightness = Number(document.getElementById('hw-brightness').value);
+      const fps = Number(document.getElementById('hw-fps').value);
+      const quality = Number(document.getElementById('hw-quality').value);
+
+      document.getElementById('hw-brightness-val').textContent = brightness + '%';
+      document.getElementById('hw-quality-val').textContent = quality + '%';
+
+      sendCmd('updateHardwareConfig', {
+        rotation,
+        brightness,
+        fps,
+        quality
+      });
+      scheduleAutoSave();
+    }
+
+    window.__LOAD_SETTINGS__ = function (s) {
+      if (!s) return;
+      isRestoringSettings = true;
+      try {
+        if (s.activeScreenMode) activeScreenMode = s.activeScreenMode;
+        if (s.currentAnim) currentAnim = s.currentAnim;
+        if (s.lastPreferredHud) lastPreferredHud = s.lastPreferredHud;
+        if (s.lastPreferredViz) lastPreferredViz = s.lastPreferredViz;
+        if (s.currentHud) currentHud = s.currentHud;
+        if (s.currentViz) currentViz = s.currentViz;
+
+        // If a classic animation was saved with HUD accidentally off, restore side-wings
+        if (classicThemeIds.has(currentAnim) && currentHud === 'off') {
+          currentHud = 'side-wings';
+          currentViz = 'spectrum-bars';
+        }
+
+        if (s.webUrl) document.getElementById('url-input').value = normalizeYouTubeUrl(s.webUrl);
+        if (s.webZoom !== undefined) document.getElementById('web-zoom').value = s.webZoom;
+        if (s.webOffsetY !== undefined) document.getElementById('web-offset-y').value = s.webOffsetY;
+        if (s.webOffsetX !== undefined) document.getElementById('web-offset-x').value = s.webOffsetX;
+        if (s.webAutoScroll !== undefined) document.getElementById('web-autoscroll').value = s.webAutoScroll;
+        if (s.webBrightness !== undefined) document.getElementById('web-brightness').value = s.webBrightness;
+        if (s.webInvert !== undefined) document.getElementById('web-invert').checked = Boolean(s.webInvert);
+        if (s.webRefresh !== undefined) document.getElementById('web-refresh').value = s.webRefresh;
+        if (Array.isArray(s.customBookmarks)) customBookmarks = s.customBookmarks;
+
+        if (s.animSpeed !== undefined) document.getElementById('anim-speed').value = s.animSpeed;
+        if (s.accentColor) document.getElementById('anim-color1').value = s.accentColor;
+        if (s.secondaryColor) document.getElementById('anim-color2').value = s.secondaryColor;
+        if (s.heroText !== undefined) document.getElementById('hero-text').value = s.heroText;
+        if (s.heroSubText !== undefined) document.getElementById('hero-subtext').value = s.heroSubText;
+        if (s.bannerText !== undefined) document.getElementById('banner-text').value = s.bannerText;
+        if (s.audioReactive !== undefined) document.getElementById('anim-audio-react').checked = Boolean(s.audioReactive);
+        if (s.customHtml !== undefined) document.getElementById('custom-html-input').value = s.customHtml;
+
+        if (Array.isArray(s.mediaPlaylist) && s.mediaPlaylist.length > 0) mediaPlaylist = s.mediaPlaylist;
+        if (s.currentMediaIdx !== undefined) currentMediaIdx = s.currentMediaIdx;
+        if (s.mediaFit) document.getElementById('media-fit').value = s.mediaFit;
+        if (s.mediaRotate !== undefined) document.getElementById('media-rotate').value = s.mediaRotate;
+        if (s.mediaFlipH !== undefined) document.getElementById('media-fliph').checked = Boolean(s.mediaFlipH);
+        if (s.mediaFlipV !== undefined) document.getElementById('media-flipv').checked = Boolean(s.mediaFlipV);
+        if (s.mediaZoom !== undefined) document.getElementById('media-zoom').value = s.mediaZoom;
+        if (s.mediaPanY !== undefined) document.getElementById('media-pan-y').value = s.mediaPanY;
+        if (s.mediaPanX !== undefined) document.getElementById('media-pan-x').value = s.mediaPanX;
+        if (s.playlistInterval !== undefined) document.getElementById('playlist-interval').value = s.playlistInterval;
+
+        if (s.hudOpacity !== undefined) document.getElementById('hud-opacity').value = s.hudOpacity;
+        if (s.hudScale !== undefined) document.getElementById('hud-scale').value = s.hudScale;
+        if (s.tempUnit) document.getElementById('hud-temp-unit').value = s.tempUnit;
+        if (s.showCpu !== undefined) document.getElementById('hud-cpu').checked = Boolean(s.showCpu);
+        if (s.showGpu !== undefined) document.getElementById('hud-gpu').checked = Boolean(s.showGpu);
+        if (s.showRam !== undefined) document.getElementById('hud-ram').checked = Boolean(s.showRam);
+        if (s.showNet !== undefined) document.getElementById('hud-net').checked = Boolean(s.showNet);
+        if (s.showClock !== undefined) document.getElementById('hud-clock').checked = Boolean(s.showClock);
+
+        if (s.vizGain !== undefined) document.getElementById('viz-gain').value = s.vizGain;
+        if (s.vizHeight !== undefined) document.getElementById('viz-height').value = s.vizHeight;
+        if (s.vizOpacity !== undefined) document.getElementById('viz-opacity').value = s.vizOpacity;
+
+        if (s.rotation !== undefined) {
+          document.getElementById('hw-rotation').value = String(s.rotation);
+          const btn = document.getElementById('quick-flip-btn');
+          if (btn) btn.textContent = '🔄 ' + s.rotation + '°';
+        }
+        if (s.brightness !== undefined) document.getElementById('hw-brightness').value = s.brightness;
+        if (s.fps !== undefined) document.getElementById('hw-fps').value = String(s.fps);
+        if (s.quality !== undefined) document.getElementById('hw-quality').value = s.quality;
+
+        if (s.psxSymbols) document.getElementById('market-psx-symbols').value = s.psxSymbols;
+        if (s.usSymbols) document.getElementById('market-us-symbols').value = s.usSymbols;
+        if (s.cryptoSymbols) document.getElementById('market-crypto-symbols').value = s.cryptoSymbols;
+        if (s.usdToPkr) document.getElementById('market-usd-pkr').value = s.usdToPkr;
+        if (s.marketCurrency) {
+          marketCurrency = s.marketCurrency;
+          const s1 = document.getElementById('market-currency');
+          const s2 = document.getElementById('anim-currency');
+          if (s1) s1.value = marketCurrency;
+          if (s2) s2.value = marketCurrency;
+        }
+        if (s.autoConvertUpload !== undefined && document.getElementById('auto-convert-upload')) {
+          document.getElementById('auto-convert-upload').checked = Boolean(s.autoConvertUpload);
+        }
+        if (s.convertMode && document.getElementById('convert-mode')) {
+          document.getElementById('convert-mode').value = s.convertMode;
+        }
+        if (s.clock24h !== undefined && document.getElementById('clock-24h')) {
+          document.getElementById('clock-24h').checked = Boolean(s.clock24h);
+        }
+        if (s.startWithWindows !== undefined) {
+          const sw1 = document.getElementById('start-with-windows');
+          const sw2 = document.getElementById('hw-start-windows');
+          if (sw1) sw1.checked = Boolean(s.startWithWindows);
+          if (sw2) sw2.checked = Boolean(s.startWithWindows);
+        }
+        if (s.startMinimizedOnBoot !== undefined && document.getElementById('start-minimized-boot')) {
+          document.getElementById('start-minimized-boot').checked = Boolean(s.startMinimizedOnBoot);
+        }
+
+        // Ensure Mooas Split-Flap Clock is available in saved playlists too
+        if (Array.isArray(mediaPlaylist) && !mediaPlaylist.some(x => x && x.url === '__anim__:mooas-flip')) {
+          mediaPlaylist.unshift({ name: '🕰️ Mooas Mechanical Split-Flap Clock', url: '__anim__:mooas-flip', type: 'anim' });
+        }
+
+        renderWebPresets();
+        renderAnimPresets();
+        renderPlaylist();
+        renderHudPresets();
+        renderVizPresets();
+        updateWebFraming();
+        updateHardwareConfig();
+
+        if (activeScreenMode === 'web' && s.webUrl) {
+          switchTab('web');
+          navigateUrl();
+        } else if (activeScreenMode === 'media') {
+          switchTab('media');
+          updateMediaConfig(true);
+        } else if (activeScreenMode === 'customhtml') {
+          switchTab('anim');
+          runCustomHtml();
+        } else {
+          updateAnimConfig(true);
+        }
+      } catch (e) {}
+      isRestoringSettings = false;
+    };
+
+    function updateMarketDeckPrices() {
+      const m = latestMarketDataCache;
+      if (!m) return;
+      const pkr = Number(m.usdToPkr) || 278.65;
+      if (m.crypto && m.crypto.length > 0) {
+        const btc = m.crypto[0];
+        const sign = Number(btc.change24h) >= 0 ? '+' : '';
+        const chg = `${sign}${Number(btc.change24h || 0).toFixed(2)}%`;
+        const usdStr = '$' + Number(btc.priceUsd).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const rsStr = 'Rs. ' + Math.round(btc.priceUsd * pkr).toLocaleString('en-PK');
+        if (marketCurrency === 'PKR') {
+          document.getElementById('deck-btc-price').textContent = `${rsStr} (${chg})`;
+        } else if (marketCurrency === 'BOTH') {
+          document.getElementById('deck-btc-price').textContent = `${usdStr} · ${rsStr}`;
+        } else if (marketCurrency === 'EUR') {
+          document.getElementById('deck-btc-price').textContent = `€${(btc.priceUsd * 0.92).toLocaleString('en-US', { maximumFractionDigits: 2 })} (${chg})`;
+        } else if (marketCurrency === 'GBP') {
+          document.getElementById('deck-btc-price').textContent = `£${(btc.priceUsd * 0.79).toLocaleString('en-US', { maximumFractionDigits: 2 })} (${chg})`;
+        } else if (marketCurrency === 'AED') {
+          document.getElementById('deck-btc-price').textContent = `AED ${(btc.priceUsd * 3.6725).toLocaleString('en-US', { maximumFractionDigits: 0 })} (${chg})`;
+        } else if (marketCurrency === 'SAR') {
+          document.getElementById('deck-btc-price').textContent = `SAR ${(btc.priceUsd * 3.75).toLocaleString('en-US', { maximumFractionDigits: 0 })} (${chg})`;
+        } else {
+          document.getElementById('deck-btc-price').textContent = `${usdStr} (${chg})`;
+        }
+      }
+      if (m.kse100) {
+        const k = m.kse100;
+        const sign = k.changePct >= 0 ? '+' : '';
+        document.getElementById('deck-psx-price').textContent = `${Number(k.value).toLocaleString('en-US', { maximumFractionDigits: 2 })} (${sign}${Number(k.changePct).toFixed(2)}%)`;
+      }
+      if (m.usStocks && m.usStocks.length > 0) {
+        const u = m.usStocks[0];
+        const sign = u.changePct >= 0 ? '+' : '';
+        document.getElementById('deck-us-price').textContent = `${u.symbol} $${Number(u.price).toFixed(2)} (${sign}${Number(u.changePct).toFixed(2)}%)`;
+      }
+    }
+
+    window.__HOST_EVENT__ = function (ev) {
+      if (!ev) return;
+      if (ev.type === 'telemetry') {
+        const t = ev.telemetry;
+        document.getElementById('live-cpu').textContent = `${Math.round(t.cpuTemp)}°C · ${Math.round(t.cpuUsage)}%`;
+        document.getElementById('live-gpu').textContent = `${Math.round(t.gpuTemp)}°C · ${Math.round(t.gpuUsage)}%`;
+        document.getElementById('live-clock').textContent = `${Math.round(t.cpuClock)} MHz`;
+        document.getElementById('live-ram').textContent = `${Math.round(t.ramUsage)}% (${Number(t.ramUsedGb || 0).toFixed(1)}G)`;
+        document.getElementById('fps-text').textContent = `${ev.fps || 25} FPS · ${ev.kb || 42} KB`;
+        const usbText = document.getElementById('usb-status-text');
+        const usbDot = document.getElementById('usb-dot');
+        usbText.textContent = ev.usbStatus || 'TL-M10 Active';
+        usbDot.className = ev.usbConnected ? 'dot' : 'dot warn';
+      } else if (ev.type === 'marketData' && ev.data) {
+        latestMarketDataCache = ev.data;
+        updateMarketDeckPrices();
+      } else if (ev.type === 'mediaAdded' && Array.isArray(ev.files)) {
+        if (typeof ev.replaceIndex === 'number' && ev.replaceIndex >= 0 && ev.replaceIndex < mediaPlaylist.length && ev.files.length === 1) {
+          mediaPlaylist[ev.replaceIndex] = ev.files[0];
+          currentMediaIdx = ev.replaceIndex;
+        } else {
+          ev.files.forEach(f => mediaPlaylist.push(f));
+          currentMediaIdx = mediaPlaylist.length - 1;
+        }
+        if (ev.fitMode && document.getElementById('media-fit')) {
+          document.getElementById('media-fit').value = ev.fitMode;
+        }
+        switchTab('media');
+        playMediaIndex(currentMediaIdx);
+        saveAllSettingsNow(true);
+      } else if (ev.type === 'startWithWindowsChanged' && ev.enabled !== undefined) {
+        const sw1 = document.getElementById('start-with-windows');
+        const sw2 = document.getElementById('hw-start-windows');
+        if (sw1) sw1.checked = Boolean(ev.enabled);
+        if (sw2) sw2.checked = Boolean(ev.enabled);
+      } else if (ev.type === 'converterStatus' && ev.message) {
+        const box = document.getElementById('converter-status-box');
+        if (box) box.textContent = ev.message;
+      } else if (ev.type === 'urlChanged' && ev.url) {
+        if (!ev.url.includes('vision.local/screen.html')) {
+          document.getElementById('url-input').value = ev.url;
+        }
+      } else if (ev.type === 'rotationChanged' && ev.rotation !== undefined) {
+        const v = String(ev.rotation);
+        const sel1 = document.getElementById('hw-rotation');
+        if (sel1) sel1.value = v;
+        const btn = document.getElementById('quick-flip-btn');
+        if (btn) btn.textContent = '🔄 ' + v + '°';
+        scheduleAutoSave();
+      }
+    };
+
+    renderWebPresets();
+    renderAnimPresets();
+    renderPlaylist();
+    renderHudPresets();
+    renderVizPresets();
+  </script>
+</body>
+</html>
