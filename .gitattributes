@@ -1,3 +1,4 @@
-# Classify repository language accurately as C# (embedded WebView2 HTML/JS templates are UI assets)
-ui/*.html linguist-vendored
-ui/*.js linguist-vendored
+*.gitattributes text eol=lf
+*.html linguist-vendored=true
+*.js linguist-vendored=true
+ui/* linguist-vendored=true
