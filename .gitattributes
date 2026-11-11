@@ -1,4 +1,2 @@
-*.gitattributes text eol=lf
-*.html linguist-vendored=true
-*.js linguist-vendored=true
-ui/* linguist-vendored=true
+*.html linguist-detectable=false linguist-generated=true linguist-vendored=true
+*.js linguist-detectable=false linguist-generated=true linguist-vendored=true
